@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "If you use this work, please cite it as below."
+type: software
+title: "RFSoC 4x2 100G RDMA with ERNIC"
+authors:
+  - family-names: "Yu"
+    given-names: "Yijie"
+repository-code: "https://github.com/uceeyuf/rfsoc4x2_ernic"
+url: "https://github.com/uceeyuf/rfsoc4x2_ernic"
+date-released: 2026-09-29
+license: BSD-3-Clause
+keywords:
+  - "RFSoC"
+  - "RDMA"
+  - "RoCE v2"
+  - "ERNIC"
+  - "100GbE"
+  - "FPGA"
+references:
+  - type: software
+    title: "verilog-ethernet"
+    authors:
+      - family-names: "Forencich"
+        given-names: "Alex"
+    url: "https://github.com/alexforencich/verilog-ethernet"

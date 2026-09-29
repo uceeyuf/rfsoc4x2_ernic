@@ -118,6 +118,24 @@ MODE=echo ITERS=3 SIZE_MB=256 WINDOW=48 tests/debug_loopback.sh              # h
 
 　
 
+## Citation
+
+If this work helps your research, please cite it:
+
+```bibtex
+@misc{yu2026rfsoc4x2_ernic,
+    author = {Yijie Yu},
+    title = {{RFSoC 4x2 100G RDMA with ERNIC}},
+    year = {2026},
+    howpublished = {\url{https://github.com/uceeyuf/rfsoc4x2_ernic}},
+    note = {GitHub repository},
+}
+```
+
+GitHub also offers the citation under **Cite this repository** (from [CITATION.cff](CITATION.cff)).
+
+　
+
 ## License
 
 The files of this design are BSD 3-Clause, Copyright (c) 2026, Yijie Yu. ERNIC, CMAC, MIG and the other AMD IP are generated from their configuration scripts and are not included; they need their own licenses. verilog-ethernet (submodule, `274831c`) is MIT.
@@ -237,6 +255,24 @@ MODE=echo ITERS=3 SIZE_MB=256 WINDOW=48 tests/debug_loopback.sh              # �
 ```
 
 `tests/debug_loopback.sh` 启动 `host/rdma_loopback`（创建 QP，并把 QP 号、MAC 和 PSN 写入文件），通过 JTAG 用这些参数配置 ERNIC，打印每秒帧计数（回环模式下还有 `send_echo` 的门铃计数）、ERNIC 状态和错误缓冲，以及主机的测试结果。FPGA 为 `02:00:00:00:00:01` / `192.168.100.1`，QP 2。
+
+　
+
+## 引用
+
+如果这个项目对你的研究有帮助，请引用：
+
+```bibtex
+@misc{yu2026rfsoc4x2_ernic,
+    author = {Yijie Yu},
+    title = {{RFSoC 4x2 100G RDMA with ERNIC}},
+    year = {2026},
+    howpublished = {\url{https://github.com/uceeyuf/rfsoc4x2_ernic}},
+    note = {GitHub repository},
+}
+```
+
+GitHub 仓库页的 **Cite this repository** 也提供同样的引用（来自 [CITATION.cff](CITATION.cff)）。
 
 　
 
