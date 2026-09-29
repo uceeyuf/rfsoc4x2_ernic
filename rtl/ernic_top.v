@@ -428,6 +428,11 @@ wire [1:0]  lite_bresp, lite_rresp;
 wire        lite_awvalid, lite_awready, lite_wvalid, lite_wready, lite_bvalid, lite_bready;
 wire        lite_arvalid, lite_arready, lite_rvalid, lite_rready;
 wire        rnic_intr;
+wire [31:0] rq_db_data, cq_db_cnt, sq_pidb_addr, rq_cidb_addr;
+wire [12:0] rq_db_addr, cq_db_addr;
+wire [15:0] sq_pidb, rq_cidb;
+wire        rq_db_valid, rq_db_rdy, cq_db_valid, cq_db_rdy;
+wire        sq_pidb_valid, sq_pidb_rdy, rq_cidb_valid, rq_cidb_rdy;
 
 ernic_0 ernic_inst (
     .m_axi_aclk(clk_200), .m_axi_aresetn(!rst_200),
@@ -630,14 +635,15 @@ ernic_0 ernic_inst (
     .s_axi_lite_rready(lite_rready), .s_axi_lite_rvalid(lite_rvalid), .s_axi_lite_bresp(lite_bresp),
     .s_axi_lite_bready(lite_bready), .s_axi_lite_bvalid(lite_bvalid),
     // doorbells go to DDR (QPCONFi[4] = 1): the hardware handshake ports are idle
-    .resp_hndler_o_send_cq_db_cnt_valid(), .resp_hndler_o_send_cq_db_addr(), .resp_hndler_o_send_cq_db_cnt(),
-    .resp_hndler_i_send_cq_db_rdy(1'b1),
-    .i_qp_rq_cidb_hndshk(16'd0), .i_qp_rq_cidb_wr_addr_hndshk(8'd0), .i_qp_rq_cidb_wr_valid_hndshk(1'b0),
-    .o_qp_rq_cidb_wr_rdy(),
-    .i_qp_sq_pidb_hndshk(16'd0), .i_qp_sq_pidb_wr_addr_hndshk(8'd0), .i_qp_sq_pidb_wr_valid_hndshk(1'b0),
-    .o_qp_sq_pidb_wr_rdy(),
-    .rx_pkt_hndler_o_rq_db_data(), .rx_pkt_hndler_o_rq_db_addr(), .rx_pkt_hndler_o_rq_db_data_valid(),
-    .rx_pkt_hndler_i_rq_db_rdy(1'b1),
+    // doorbell handshake ports (QPs with QPCONFi[4] = 0) -> send_echo
+    .resp_hndler_o_send_cq_db_cnt_valid(cq_db_valid), .resp_hndler_o_send_cq_db_addr(cq_db_addr), .resp_hndler_o_send_cq_db_cnt(cq_db_cnt),
+    .resp_hndler_i_send_cq_db_rdy(cq_db_rdy),
+    .i_qp_rq_cidb_hndshk(rq_cidb), .i_qp_rq_cidb_wr_addr_hndshk(rq_cidb_addr), .i_qp_rq_cidb_wr_valid_hndshk(rq_cidb_valid),
+    .o_qp_rq_cidb_wr_rdy(rq_cidb_rdy),
+    .i_qp_sq_pidb_hndshk(sq_pidb), .i_qp_sq_pidb_wr_addr_hndshk(sq_pidb_addr), .i_qp_sq_pidb_wr_valid_hndshk(sq_pidb_valid),
+    .o_qp_sq_pidb_wr_rdy(sq_pidb_rdy),
+    .rx_pkt_hndler_o_rq_db_data(rq_db_data), .rx_pkt_hndler_o_rq_db_addr(rq_db_addr), .rx_pkt_hndler_o_rq_db_data_valid(rq_db_valid),
+    .rx_pkt_hndler_i_rq_db_rdy(rq_db_rdy),
     .rnic_intr(rnic_intr),
     .stat_rx_pause_req(9'd0), .ctl_tx_pause_req(), .ctl_tx_resend_pause(),
     .ieth_immdt_axis_tvalid(), .ieth_immdt_axis_tlast(), .ieth_immdt_axis_tdata(), .ieth_immdt_axis_trdy(1'b1),
@@ -1113,6 +1119,29 @@ always @(posedge mac_clk) begin
     status_cdc_sr[1] <= status_cdc_sr[0];
 end
 wire [7:0] status = {5'd0, status_cdc_sr[1]};
+
+// ---------------------------------------------------------------- hardware SEND echo (QP2)
+wire [15:0] e_rq_db, e_cq_db, e_other_db, e_sq_pidb, e_rq_cidb;
+wire [31:0] e_last_rq, e_last_cq;
+wire        echo_rst;                          // pulsed by tests/ernic_config.tcl while configuring
+
+send_echo #(.QP(2), .DEPTH(16)) echo_inst (
+    .clk(clk_200), .rst(rst_200 || echo_rst),
+    .rq_db_data(rq_db_data), .rq_db_addr(rq_db_addr), .rq_db_valid(rq_db_valid), .rq_db_rdy(rq_db_rdy),
+    .cq_db_cnt(cq_db_cnt), .cq_db_addr(cq_db_addr), .cq_db_valid(cq_db_valid), .cq_db_rdy(cq_db_rdy),
+    .sq_pidb(sq_pidb), .sq_pidb_addr(sq_pidb_addr), .sq_pidb_valid(sq_pidb_valid), .sq_pidb_rdy(sq_pidb_rdy),
+    .rq_cidb(rq_cidb), .rq_cidb_addr(rq_cidb_addr), .rq_cidb_valid(rq_cidb_valid), .rq_cidb_rdy(rq_cidb_rdy),
+    .n_rq_db(e_rq_db), .n_cq_db(e_cq_db), .n_other_db(e_other_db), .n_sq_pidb(e_sq_pidb), .n_rq_cidb(e_rq_cidb),
+    .last_rq_db(e_last_rq), .last_cq_db(e_last_cq)
+);
+
+// echo counters, sampled in their own clock domain
+vio_1 vio_echo (
+    .clk(clk_200),
+    .probe_in0({e_rq_db, e_cq_db, e_sq_pidb, e_rq_cidb}), .probe_in1(e_other_db),
+    .probe_in2(e_last_rq), .probe_in3(e_last_cq),
+    .probe_out0(echo_rst)
+);
 
 vio_0 vio_inst (
     .clk(mac_clk),

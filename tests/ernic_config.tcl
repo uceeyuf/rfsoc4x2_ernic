@@ -1,10 +1,15 @@
-# Configure ERNIC over JTAG for the memory loopback, then dump its state.
+# Configure ERNIC over JTAG for the memory loopback or the SEND echo, then dump its state.
 #
 #   vivado -mode batch -source tests/ernic_config.tcl -tclargs <host params file> [program]
 #   vivado -mode batch -source tests/ernic_config.tcl -tclargs status
 #
-# The params file comes from host/rdma_loopback (host QPN, MAC, PSN); when ERNIC is configured
-# the script creates "<file>.ready" and the host program connects. program = 1 loads build/ernic.bit.
+# The params file comes from host/rdma_loopback (host QPN, MAC, PSN, mode); when ERNIC is
+# configured the script creates "<file>.ready" and the host program connects. program = 1 loads
+# build/ernic.bit.
+#
+# Echo mode (params "mode echo", message size "msg"): QP2 uses the doorbell handshake ports
+# (QPCONF[4] = 0), which rtl/send_echo.v connects: its send queue is pre-filled with 16 SEND WQEs,
+# WQE k sending receive buffer k back, so every received message is sent back without the CPU.
 #
 # PL DDR4 layout (ERNIC AXI addresses):
 #   0x0010_0000 error buffer         0x0014_0000 response error buffer   0x0050_0000 data buffers
@@ -46,6 +51,18 @@ foreach a [get_hw_axis] {
     if {[string match *jtag_lite* [get_property CELL_NAME $a]]} { set LITE $a } else { set MEM $a }
 }
 puts "AXI masters: lite $LITE ([get_property CELL_NAME $LITE]), mem $MEM ([get_property CELL_NAME $MEM])"
+set vio ""; set evio ""
+foreach v [get_hw_vios -of_objects $dev] {
+    if {[string match *vio_echo* [get_property CELL_NAME $v]]} { set evio $v } else { set vio $v }
+}
+# hold the echo engine (rtl/send_echo.v) in reset: its pointers restart with the QP
+proc echo_reset {v on} {
+    if {$v eq ""} { return }
+    set p [get_hw_probes -of_objects $v -filter {NAME =~ *echo_rst*}]
+    if {$p eq ""} { return }
+    set_property OUTPUT_VALUE $on $p
+    commit_hw_vio $p
+}
 
 set ::txn 0
 proc wr {axi addr data} {
@@ -110,15 +127,21 @@ while {[gets $f line] >= 0} {
 }
 close $f
 set hmac 0x[string map {: ""} $host(mac)]
+set ECHO [expr {[info exists host(mode)] && $host(mode) eq "echo"}]
+set MSG  [expr {[info exists host(msg)] ? $host(msg) : 4096}]
 set HOST_IP 0xC0A86402                ;# 192.168.100.2
-puts [format "host: QPN %d  MAC %012x  PSN 0x%x" $host(qpn) $hmac $host(psn)]
+puts [format "host: QPN %d  MAC %012x  PSN 0x%x  %s" $host(qpn) $hmac $host(psn) \
+    [expr {$ECHO ? "echo, $MSG B messages" : "memory loopback"}]]
 
 # ---------------------------------------------------------------- DDR: clear doorbells and queues
 zero $MEM 0x00200000 64
+zero $MEM 0x00202000 64
+zero $MEM 0x00100000 128                                    ;# error buffer, first entries
 foreach b {0x00310000 0x00320000 0x00410000 0x00420000} { zero $MEM $b 256 }
 
 # ---------------------------------------------------------------- global
 reg 0x100000 0                                             ;# disabled while configuring
+echo_reset $evio 1
 reg 0x100004 [expr {10 << 16}]                             ;# base count width for 200 MHz
 reg 0x100044 [expr {$NUM_QP - 1}]                         ;# XRNIC_CONF_QP_EN: highest QP enabled (v4.0; the example writes 7 for 8 QPs)
 lassign [mac_regs $FPGA_MAC] ml mh
@@ -148,18 +171,44 @@ qreg 1 0x00 [expr {$QPEN | (1 << 16)}]                     ;# RQ buffers of 256 
 # ---------------------------------------------------------------- QP2 (RC, connected to the host)
 qreg 2 0x04 [expr {(0xFFFF << 16) | (64 << 8)}]            ;# P_Key, TTL
 qreg 2 0x08 0x00400000 ; qreg 2 0x10 0x00410000 ; qreg 2 0x18 0x00420000
-qreg 2 0x20 [expr {0x00200000 + 0x20 + 8}] ; qreg 2 0x28 [expr {0x00200000 + 0x20}]
+if {$ECHO} {
+    # the handshake ports carry the low 13 bits of these addresses as the doorbell address;
+    # rtl/send_echo.v listens for 0x004 on both (the addresses must still differ in memory)
+    qreg 2 0x20 0x00200004 ; qreg 2 0x28 0x00202004
+} else {
+    qreg 2 0x20 [expr {0x00200000 + 0x20 + 8}] ; qreg 2 0x28 [expr {0x00200000 + 0x20}]
+}
 qreg 2 0x3C [expr {(16 << 16) | 16}]
 qreg 2 0x40 $host(psn)                                     ;# our SQ PSN = the host's RQ PSN
 qreg 2 0x44 [expr {(($host(psn) - 1) & 0xFFFFFF) | (4 << 24)}]   ;# last received = host SQ PSN - 1
 qreg 2 0x48 $host(qpn)
-qreg 2 0x4C [expr {18 | (7 << 8) | (7 << 11) | (0x1F << 16)}]    ;# timeout, retries, RNR
+set RNR [expr {[info exists ::env(RNR_TIMER)] ? $::env(RNR_TIMER) : 1}]      ;# RNR NAK timer, IB code: 1 = 0.01 ms (0x1F = 491 ms stalls the echo)
+qreg 2 0x4C [expr {18 | (7 << 8) | (7 << 11) | ($RNR << 16)}]     ;# timeout, retries, RNR retries, RNR timer
 lassign [mac_regs $hmac] ml mh
 qreg 2 0x50 $ml ; qreg 2 0x54 $mh
 qreg 2 0x60 [ip_reg $HOST_IP]
 qreg 2 0xB0 0                                              ;# PD 0
-qreg 2 0x00 [expr {$QPEN | (4 << 8) | (16 << 16)}]         ;# PMTU 4096, RQ buffers of 4 KB
+if {$ECHO} {
+    # send WQE k: SEND of MSG bytes from receive buffer k (64 B WQE: WRID, local address,
+    # length, opcode 0x02; the write data string starts with the highest-address word)
+    for {set k 0} {$k < 16} {incr k} {
+        set w [lrepeat 16 0]
+        lset w 0 $k
+        lset w 1 [expr {0x00400000 + $k * 4096}]
+        lset w 3 $MSG
+        lset w 4 0x02
+        set d ""
+        for {set i 15} {$i >= 0} {incr i -1} { append d [format %08x [lindex $w $i]] }
+        set t [create_hw_axi_txn w[incr ::txn] $MEM -type write -address [format %08x [expr {0x00410000 + $k * 64}]] -data $d -len 16]
+        run_hw_axi -quiet $t
+        delete_hw_axi_txn $t
+    }
+    qreg 2 0x00 [expr {1 | (1 << 5) | (4 << 8) | (16 << 16)}]   ;# HW handshake doorbells, PMTU 4096, RQ buffers of 4 KB
+} else {
+    qreg 2 0x00 [expr {$QPEN | (4 << 8) | (16 << 16)}]         ;# PMTU 4096, RQ buffers of 4 KB
+}
 
+echo_reset $evio 0
 reg 0x100000 [expr {1 | (1 << 5) | ($UDP_SPORT << 8)}]    ;# enable ERNIC, error buffer, UDP source port [23:8]
 
 dump
@@ -167,8 +216,18 @@ set rf [open "$arg0.ready" w]; close $rf
 puts "ERNIC configured; $arg0.ready written"
 
 # watch the traffic for a few seconds (per-second VIO counters), then the error buffer
-set vio [get_hw_vios -of_objects $dev]
 set names {c_mac_rx c_roce_rx c_other_rx c_mac_rx_bad c_rxq_drop c_mac_tx}
+# echo engine: {RQ doorbells, CQ doorbells, SQ PI accepted, RQ CI accepted}, other QPs, last RQ / CQ
+proc echo_line {v} {
+    if {$v eq ""} { return "" }
+    refresh_hw_vio $v
+    set out ""
+    foreach p [lsort [get_hw_probes -of_objects $v -filter {NAME !~ *echo_rst*}]] {
+        set_property INPUT_VALUE_RADIX HEX $p
+        append out " [get_property INPUT_VALUE $p]"
+    }
+    return "  echo$out"
+}
 set secs [expr {[info exists ::env(WATCH)] ? $::env(WATCH) : 3}]
 for {set t 1} {$t <= $secs} {incr t} {
     after 1000
@@ -180,6 +239,7 @@ for {set t 1} {$t <= $secs} {incr t} {
         append line "  $n [get_property INPUT_VALUE $p]"
     }
     puts $line
+    if {$ECHO} { puts [echo_line $evio] }
 }
 dump
 # the error buffer (ERRBUFWPTR does not move on this core; read the first entries directly):

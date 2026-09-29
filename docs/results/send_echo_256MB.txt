@@ -1,0 +1,32 @@
+tests/debug_loopback.sh  (MODE=echo SIZE_MB=256 ITERS=3 WINDOW=w): 4096-byte SENDs, 65536 per run, every echo compared
+host: Core Ultra 7 265K, ConnectX-4 (rocep2s0, PCIe 3.0 x16), Ubuntu 24.04, rdma-core 50, IOMMU on, host buffers on 2 MB THP
+
+connected to QP 2 at 192.168.100.1; echo of 256 MB in 4096 B SENDs, 1 outstanding
+run 1: 65536 echoes in 0.365 s: 5.88 Gbit/s each way, 5.57 us per message (5.57 us round trip at window 1)   compare: identical (0 of 33554432 words differ)
+run 2: 65536 echoes in 0.365 s: 5.88 Gbit/s each way, 5.57 us per message (5.57 us round trip at window 1)   compare: identical (0 of 33554432 words differ)
+run 3: 65536 echoes in 0.365 s: 5.88 Gbit/s each way, 5.57 us per message (5.57 us round trip at window 1)   compare: identical (0 of 33554432 words differ)
+ERNIC error buffer: empty
+host exit 0
+
+connected to QP 2 at 192.168.100.1; echo of 256 MB in 4096 B SENDs, 4 outstanding
+run 1: 65536 echoes in 0.095 s: 22.50 Gbit/s each way, 1.46 us per message (5.83 us round trip at window 4)   compare: identical (0 of 33554432 words differ)
+run 2: 65536 echoes in 0.095 s: 22.53 Gbit/s each way, 1.45 us per message (5.82 us round trip at window 4)   compare: identical (0 of 33554432 words differ)
+run 3: 65536 echoes in 0.095 s: 22.53 Gbit/s each way, 1.45 us per message (5.82 us round trip at window 4)   compare: identical (0 of 33554432 words differ)
+ERNIC error buffer: empty
+host exit 0
+
+connected to QP 2 at 192.168.100.1; echo of 256 MB in 4096 B SENDs, 8 outstanding
+run 1: 65536 echoes in 0.058 s: 36.98 Gbit/s each way, 0.89 us per message (7.09 us round trip at window 8)   compare: identical (0 of 33554432 words differ)
+run 2: 65536 echoes in 0.058 s: 37.10 Gbit/s each way, 0.88 us per message (7.07 us round trip at window 8)   compare: identical (0 of 33554432 words differ)
+run 3: 65536 echoes in 0.058 s: 37.04 Gbit/s each way, 0.88 us per message (7.08 us round trip at window 8)   compare: identical (0 of 33554432 words differ)
+ERNIC error buffer: empty
+host exit 0
+
+connected to QP 2 at 192.168.100.1; echo of 256 MB in 4096 B SENDs, 12 outstanding
+run 1: 65536 echoes in 0.046 s: 46.47 Gbit/s each way, 0.71 us per message (8.46 us round trip at window 12)   compare: identical (0 of 33554432 words differ)
+run 2: 65536 echoes in 0.046 s: 46.52 Gbit/s each way, 0.70 us per message (8.45 us round trip at window 12)   compare: identical (0 of 33554432 words differ)
+run 3: 65536 echoes in 0.046 s: 46.54 Gbit/s each way, 0.70 us per message (8.45 us round trip at window 12)   compare: identical (0 of 33554432 words differ)
+ERNIC error buffer: empty
+host exit 0
+
+host NIC rx_discards_phy +0

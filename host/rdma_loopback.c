@@ -1,20 +1,22 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Yijie Yu
 //
-// rdma_loopback - RDMA memory loopback through ERNIC on the RFSoC 4x2 (RoCE v2, RC QP).
+// rdma_loopback - RDMA loopback through ERNIC on the RFSoC 4x2 (RoCE v2, RC QP).
 //
-// The host RDMA WRITEs a pattern into a memory region of the FPGA (PL DDR4), RDMA READs it back
-// into a second buffer and compares; both directions are timed. No connection manager: the QP
+// Memory mode (default): the host RDMA WRITEs a pattern into a memory region of the FPGA (PL
+// DDR4), RDMA READs it back into a second buffer and compares; both directions are timed.
+// Echo mode (--mode echo): the host SENDs fixed-size messages, the FPGA fabric (rtl/send_echo.v)
+// SENDs each one back without the CPU, and the host compares the echoes; at most --window
+// messages are outstanding (the FPGA has 16 receive buffers). No connection manager: the QP
 // is connected by hand. The host QP number, MAC and PSN go to a file for the FPGA side
 // (tests/ernic_config.tcl programs ERNIC with them); the program waits until that file's
 // "ready" twin appears, then moves the QP to RTS.
 //
-//   sudo ./rdma_loopback [--dev NAME (default: the first RDMA device)] [--gid-index N] [--fpga-ip 192.168.100.1] [--fpga-qpn 2]
+//   ./rdma_loopback [--dev NAME (default: the first RDMA device)] [--gid-index N] [--fpga-ip 192.168.100.1] [--fpga-qpn 2]
 //        [--va 0x10000000] [--rkey 0x12] [--size MB] [--chunk KB] [--depth N] [--iters N]
-//        [--psn N] [--params FILE]
+//        [--psn N] [--params FILE] [--mode memory|echo] [--msg BYTES] [--window N]
 //
-// Host side: the interface has 192.168.100.2/24 and MTU >= 4200, and a static neighbour entry
-// for the FPGA (its MAC, the FPGA does not answer ARP).
+// Host side: the interface has 192.168.100.2/24 and MTU >= 4200; the FPGA answers ARP.
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -32,11 +34,12 @@
 
 static struct {
     const char *dev, *params;
-    int gid_index, fpga_qpn, depth, iters;
-    uint32_t fpga_ip, rkey, psn;
+    int gid_index, fpga_qpn, depth, iters, echo, window;
+    uint32_t fpga_ip, rkey, psn, msg;
     uint64_t va, size, chunk;
 } O = {.dev = NULL, .params = "rdma_host_params.txt", .gid_index = -1, .fpga_qpn = 2, .depth = 32,
-       .iters = 3, .rkey = 0x12, .psn = 0x100, .va = 0x10000000, .size = 256ull << 20, .chunk = 1ull << 20};
+       .iters = 3, .rkey = 0x12, .psn = 0x100, .va = 0x10000000, .size = 256ull << 20, .chunk = 1ull << 20,
+       .msg = 4096, .window = 12};
 
 static double now(void)
 {
@@ -82,6 +85,9 @@ static void parse(int argc, char **argv)
         else if (!strcmp(k, "--iters")) O.iters = atoi(v);
         else if (!strcmp(k, "--psn")) O.psn = (uint32_t)strtoul(v, NULL, 0);
         else if (!strcmp(k, "--params")) O.params = v;
+        else if (!strcmp(k, "--mode")) O.echo = !strcmp(v, "echo");
+        else if (!strcmp(k, "--msg")) O.msg = (uint32_t)strtoul(v, NULL, 0);
+        else if (!strcmp(k, "--window")) O.window = atoi(v);
         else { fprintf(stderr, "unknown option %s\n", k); exit(1); }
     }
 }
@@ -119,6 +125,55 @@ static double transfer(struct ibv_qp *qp, struct ibv_cq *cq, struct ibv_mr *mr, 
     return now() - t0;
 }
 
+// send O.size bytes as O.msg-byte SENDs, at most O.window unanswered; the FPGA sends every
+// message back, received in order into rbuf. Returns seconds from the first send to the last echo.
+static double echo(struct ibv_qp *qp, struct ibv_cq *scq, struct ibv_cq *rcq, struct ibv_mr *wmr,
+                   struct ibv_mr *rmr, int *errors)
+{
+    uint64_t n = O.size / O.msg, sent = 0, echoed = 0, recvs = 0;
+    const uint64_t RQ = 256;
+    double t0 = now();
+    while (echoed < n) {
+        while (recvs < n && recvs - echoed < RQ) {
+            struct ibv_sge sge = {.addr = (uintptr_t)rmr->addr + recvs * O.msg, .length = O.msg, .lkey = rmr->lkey};
+            struct ibv_recv_wr wr = {.wr_id = recvs, .sg_list = &sge, .num_sge = 1}, *bad;
+            if (ibv_post_recv(qp, &wr, &bad)) die("ibv_post_recv");
+            recvs++;
+        }
+        while (sent < n && sent - echoed < (uint64_t)O.window) {
+            struct ibv_sge sge = {.addr = (uintptr_t)wmr->addr + sent * O.msg, .length = O.msg, .lkey = wmr->lkey};
+            struct ibv_send_wr wr = {.wr_id = sent, .sg_list = &sge, .num_sge = 1, .opcode = IBV_WR_SEND,
+                                     .send_flags = IBV_SEND_SIGNALED}, *bad;
+            if (ibv_post_send(qp, &wr, &bad)) die("ibv_post_send");
+            sent++;
+        }
+        struct ibv_wc wc[32];
+        int k = ibv_poll_cq(scq, 32, wc);
+        if (k < 0) die("ibv_poll_cq");
+        for (int i = 0; i < k; i++)
+            if (wc[i].status != IBV_WC_SUCCESS) {
+                fprintf(stderr, "SEND wr %" PRIu64 ": %s (vendor err 0x%x)\n", wc[i].wr_id,
+                        ibv_wc_status_str(wc[i].status), wc[i].vendor_err);
+                if (++*errors > 4) exit(1);
+            }
+        k = ibv_poll_cq(rcq, 32, wc);
+        if (k < 0) die("ibv_poll_cq");
+        for (int i = 0; i < k; i++) {
+            if (wc[i].status != IBV_WC_SUCCESS || wc[i].byte_len != O.msg) {
+                fprintf(stderr, "RECV wr %" PRIu64 ": %s, %u bytes (vendor err 0x%x)\n", wc[i].wr_id,
+                        ibv_wc_status_str(wc[i].status), wc[i].byte_len, wc[i].vendor_err);
+                if (++*errors > 4) exit(1);
+            }
+        }
+        echoed += (uint64_t)k;
+        if (now() - t0 > 30) {
+            fprintf(stderr, "timeout: %" PRIu64 " sent, %" PRIu64 " echoed of %" PRIu64 "\n", sent, echoed, n);
+            exit(1);
+        }
+    }
+    return now() - t0;
+}
+
 int main(int argc, char **argv)
 {
     parse(argc, argv);
@@ -148,11 +203,15 @@ int main(int argc, char **argv)
     struct ibv_mr *wmr = ibv_reg_mr(pd, wbuf, O.size, IBV_ACCESS_LOCAL_WRITE);
     struct ibv_mr *rmr = ibv_reg_mr(pd, rbuf, O.size, IBV_ACCESS_LOCAL_WRITE);
     if (!wmr || !rmr) die("ibv_reg_mr (run as root or raise the memlock limit)");
-    struct ibv_cq *cq = ibv_create_cq(ctx, 1024, NULL, NULL, 0);
-    struct ibv_qp_init_attr qia = {.send_cq = cq, .recv_cq = cq, .qp_type = IBV_QPT_RC,
-                                   .cap = {.max_send_wr = 512, .max_recv_wr = 16, .max_send_sge = 1, .max_recv_sge = 1}};
+    struct ibv_cq *cq = ibv_create_cq(ctx, 1024, NULL, NULL, 0), *rcq = ibv_create_cq(ctx, 1024, NULL, NULL, 0);
+    struct ibv_qp_init_attr qia = {.send_cq = cq, .recv_cq = rcq, .qp_type = IBV_QPT_RC,
+                                   .cap = {.max_send_wr = 512, .max_recv_wr = 256, .max_send_sge = 1, .max_recv_sge = 1}};
     struct ibv_qp *qp = ibv_create_qp(pd, &qia);
-    if (!cq || !qp) die("create cq/qp");
+    if (!cq || !rcq || !qp) die("create cq/qp");
+    if (O.echo && (O.msg == 0 || O.msg > 4096 || O.size % O.msg || O.window < 1 || O.window > 16)) {
+        fprintf(stderr, "echo: --msg 1..4096 dividing --size, --window 1..16\n");
+        return 1;
+    }
 
     struct ibv_qp_attr a = {.qp_state = IBV_QPS_INIT, .pkey_index = 0, .port_num = 1,
                             .qp_access_flags = IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE};
@@ -174,6 +233,7 @@ int main(int argc, char **argv)
     f = fopen(O.params, "w");
     if (!f) die(O.params);
     fprintf(f, "qpn %u\nmac %s\npsn %u\n", qp->qp_num, mac, O.psn);
+    if (O.echo) fprintf(f, "mode echo\nmsg %u\n", O.msg);
     fclose(f);
     printf("waiting for the FPGA side (%s) ...\n", ready);
     fflush(stdout);
@@ -212,12 +272,27 @@ int main(int argc, char **argv)
     a.max_rd_atomic = (uint8_t)rd_atom;
     if (ibv_modify_qp(qp, &a, IBV_QP_STATE | IBV_QP_SQ_PSN | IBV_QP_TIMEOUT | IBV_QP_RETRY_CNT |
                                   IBV_QP_RNR_RETRY | IBV_QP_MAX_QP_RD_ATOMIC)) die("RTS");
-    printf("connected to QP %d at %u.%u.%u.%u; %" PRIu64 " MB in %" PRIu64 " KB RDMA ops, %d in flight\n",
-           O.fpga_qpn, O.fpga_ip >> 24, (O.fpga_ip >> 16) & 255, (O.fpga_ip >> 8) & 255, O.fpga_ip & 255,
-           O.size >> 20, O.chunk >> 10, O.depth);
+    printf("connected to QP %d at %u.%u.%u.%u; ", O.fpga_qpn, O.fpga_ip >> 24, (O.fpga_ip >> 16) & 255,
+           (O.fpga_ip >> 8) & 255, O.fpga_ip & 255);
+    if (O.echo)
+        printf("echo of %" PRIu64 " MB in %u B SENDs, %d outstanding\n", O.size >> 20, O.msg, O.window);
+    else
+        printf("%" PRIu64 " MB in %" PRIu64 " KB RDMA ops, %d in flight\n", O.size >> 20, O.chunk >> 10, O.depth);
 
     int errors = 0;
-    for (int it = 1; it <= O.iters; it++) {
+    for (int it = 1; O.echo && it <= O.iters; it++) {
+        for (uint64_t i = 0; i < O.size / 8; i++) ((uint64_t *)wbuf)[i] ^= (uint64_t)it << 56;
+        memset(rbuf, 0, O.size);
+        double t = echo(qp, cq, rcq, wmr, rmr, &errors);
+        uint64_t bad = 0, n = O.size / O.msg;
+        for (uint64_t i = 0; i < O.size / 8; i++) bad += ((uint64_t *)wbuf)[i] != ((uint64_t *)rbuf)[i];
+        printf("run %d: %" PRIu64 " echoes in %.3f s: %.2f Gbit/s each way, %.2f us per message (%.2f us round trip "
+               "at window %d)   compare: %s (%" PRIu64 " of %" PRIu64 " words differ)\n",
+               it, n, t, O.size * 8 / t / 1e9, t / n * 1e6, t / n * O.window * 1e6, O.window,
+               bad ? "MISMATCH" : "identical", bad, O.size / 8);
+        fflush(stdout);
+    }
+    for (int it = 1; !O.echo && it <= O.iters; it++) {
         for (uint64_t i = 0; i < O.size / 8; i++) ((uint64_t *)wbuf)[i] ^= (uint64_t)it << 56;
         memset(rbuf, 0, O.size);
         double tw = transfer(qp, cq, wmr, wbuf, IBV_WR_RDMA_WRITE, &errors);
@@ -230,6 +305,7 @@ int main(int argc, char **argv)
     }
     ibv_destroy_qp(qp);
     ibv_destroy_cq(cq);
+    ibv_destroy_cq(rcq);
     ibv_dereg_mr(wmr);
     ibv_dereg_mr(rmr);
     ibv_dealloc_pd(pd);
