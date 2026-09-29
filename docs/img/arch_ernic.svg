@@ -27,6 +27,9 @@
     <rect x="325" y="150" width="130" height="80" rx="6" fill="#d5e8d4" stroke="#82b366"/>
     <text x="390" y="173" font-weight="bold">send_echo</text><text x="390" y="191">doorbells only</text><text x="390" y="207" fill="#555">RQ PI → SQ PI</text><text x="390" y="222" fill="#555">CQ → RQ CI</text>
 
+    <rect x="665" y="44" width="130" height="64" rx="6" fill="#d5e8d4" stroke="#82b366"/>
+    <text x="730" y="67" font-weight="bold">echo_mem</text><text x="730" y="85">256 KB URAM</text><text x="730" y="101" fill="#555">receive buffers</text>
+
     <!-- ERNIC: orange -->
     <rect x="485" y="50" width="150" height="280" rx="6" fill="#ffe6cc" stroke="#d79b00"/>
     <text x="560" y="80" font-weight="bold">ERNIC v4.0</text>
@@ -37,6 +40,7 @@
     <text x="560" y="190" fill="#555">QP manager</text>
     <text x="560" y="225">512 bit @ 200 MHz</text>
     <text x="560" y="245" fill="#555">5 AXI4 masters</text>
+    <text x="560" y="265" fill="#555">(2 via axi_split2)</text>
     <text x="560" y="300" fill="#555">TX on the CMAC clock</text>
 
     <rect x="665" y="120" width="130" height="64" rx="6" fill="#f2f2f2" stroke="#777"/>
@@ -60,6 +64,7 @@
     <path d="M485,298 L297,298"/>
     <path d="M165,298 L80,298 L80,232"/>
     <path d="M637,152 L663,152"/>
+    <path d="M637,76 L663,76"/>
     <path d="M730,186 L730,228"/>
     <path d="M230,114 L230,264"/>
     <path d="M457,190 L483,190" marker-start="url(#a)"/>

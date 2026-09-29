@@ -3,13 +3,14 @@
 # traffic counters and the ERNIC state printed while the host retries.
 #   tests/debug_loopback.sh                      memory loopback (SIZE_MB, ITERS, CHUNK_KB)
 #   MODE=echo tests/debug_loopback.sh            hardware SEND echo (MSG bytes, WINDOW outstanding)
+#   MODE=bidir VA=0x80000000 RKEY=0x134 ...      RDMA WRITE and READ at once on the on-chip MR 1
 R=/home/yijie/fpga/rfsoc4x2_ernic
 P=$R/build/dbg_params.txt
 source /tools/Xilinx/Vivado/2023.2/settings64.sh >/dev/null 2>&1
 cd $R
 rm -f $P $P.ready
 timeout 60 stdbuf -oL host/rdma_loopback --size ${SIZE_MB:-2} --iters ${ITERS:-1} --chunk ${CHUNK_KB:-64} \
-    --mode ${MODE:-memory} --msg ${MSG:-4096} --window ${WINDOW:-12} --params $P &
+    --mode ${MODE:-memory} --msg ${MSG:-4096} --window ${WINDOW:-48} --va ${VA:-0x10000000} --rkey ${RKEY:-0x12} --params $P &
 HP=$!
 for i in $(seq 1 50); do [ -f $P ] && break; sleep 0.1; done
 vivado -mode batch -nojournal -nolog -source tests/ernic_config.tcl -tclargs $P 2>&1 | grep -E "^AXI|^host:|^  |^ERNIC|ERROR"

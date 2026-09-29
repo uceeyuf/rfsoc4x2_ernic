@@ -8,13 +8,17 @@
 # build/ernic.bit.
 #
 # Echo mode (params "mode echo", message size "msg"): QP2 uses the doorbell handshake ports
-# (QPCONF[4] = 0), which rtl/send_echo.v connects: its send queue is pre-filled with 16 SEND WQEs,
-# WQE k sending receive buffer k back, so every received message is sent back without the CPU.
+# (QPCONF[4] = 0), which rtl/send_echo.v connects: 64 receive buffers and 64 SEND WQEs, WQE k
+# sending receive buffer k back, so every received message is sent back without the CPU.
+# ECHO_MEM=onchip (default): receive buffers in rtl/echo_mem.v at 0x8000_0000; ECHO_MEM=ddr:
+# buffers at 0x0040_0000. The WQEs are written to DDR4 at 0x0048_0000 in both cases: ERNIC fetches
+# WQEs through another AXI master than wqe_proc_top, so the crossbar never sees them.
 #
 # PL DDR4 layout (ERNIC AXI addresses):
 #   0x0010_0000 error buffer         0x0014_0000 response error buffer   0x0050_0000 data buffers
 #   0x0020_0000 doorbells: QP i CQ doorbell at +0x10*i, RQ write pointer at +0x10*i+8
 #   0x0030_0000 QP1 RQ / +0x1_0000 SQ / +0x2_0000 CQ     0x0040_0000 QP2 RQ / SQ / CQ
+#   echo mode: QP2 RQ 0x0040_0000 (256 KB) or 0x8000_0000 (echo_mem), SQ 0x0048_0000, CQ 0x0049_0000
 #   0x1000_0000 256 MB memory region (MR 0, R_Key 0x12, VA 0x1000_0000) for RDMA WRITE / READ
 
 set repo_dir [file normalize [file join [file dirname [info script]] ..]]
@@ -129,15 +133,18 @@ close $f
 set hmac 0x[string map {: ""} $host(mac)]
 set ECHO [expr {[info exists host(mode)] && $host(mode) eq "echo"}]
 set MSG  [expr {[info exists host(msg)] ? $host(msg) : 4096}]
+set ONCHIP [expr {!([info exists ::env(ECHO_MEM)] && $::env(ECHO_MEM) eq "ddr")}]
+set EDEPTH 64                                              ;# send_echo / echo_mem DEPTH
+set RQBASE [expr {$ONCHIP ? 0x80000000 : 0x00400000}]
 set HOST_IP 0xC0A86402                ;# 192.168.100.2
 puts [format "host: QPN %d  MAC %012x  PSN 0x%x  %s" $host(qpn) $hmac $host(psn) \
-    [expr {$ECHO ? "echo, $MSG B messages" : "memory loopback"}]]
+    [expr {$ECHO ? "echo, $MSG B messages, buffers [expr {$ONCHIP ? {on chip} : {in DDR4}}]" : "memory loopback"}]]
 
 # ---------------------------------------------------------------- DDR: clear doorbells and queues
 zero $MEM 0x00200000 64
 zero $MEM 0x00202000 64
 zero $MEM 0x00100000 128                                    ;# error buffer, first entries
-foreach b {0x00310000 0x00320000 0x00410000 0x00420000} { zero $MEM $b 256 }
+foreach b {0x00310000 0x00320000 0x00410000 0x00420000 0x00480000 0x00490000} { zero $MEM $b 1024 }
 
 # ---------------------------------------------------------------- global
 reg 0x100000 0                                             ;# disabled while configuring
@@ -160,6 +167,10 @@ reg 0x0C $MR_BASE ; reg 0x10 0
 reg 0x14 $MR_KEY
 reg 0x18 $MR_LEN
 reg 0x1C 2                                                 ;# read and write
+# memory region 1: the 256 KB of echo_mem (R_Key 0x134, VA = PA 0x8000_0000), for host tests that
+# keep PL DDR4 out of the path (rdma_loopback --mode bidir)
+reg 0x100 0 ; reg 0x104 0x80000000 ; reg 0x108 0 ; reg 0x10C 0x80000000 ; reg 0x110 0
+reg 0x114 0x34 ; reg 0x118 0x40000 ; reg 0x11C 2
 
 # ---------------------------------------------------------------- QP1 (management datagrams)
 set QPEN [expr {1 | (1 << 4) | (1 << 5)}]                  ;# enable, doorbells to memory, CQE writes
@@ -170,7 +181,13 @@ qreg 1 0x00 [expr {$QPEN | (1 << 16)}]                     ;# RQ buffers of 256 
 
 # ---------------------------------------------------------------- QP2 (RC, connected to the host)
 qreg 2 0x04 [expr {(0xFFFF << 16) | (64 << 8)}]            ;# P_Key, TTL
-qreg 2 0x08 0x00400000 ; qreg 2 0x10 0x00410000 ; qreg 2 0x18 0x00420000
+if {!$ECHO} {
+    qreg 2 0x08 0x00400000 ; qreg 2 0x10 0x00410000 ; qreg 2 0x18 0x00420000
+    qreg 2 0x3C [expr {(16 << 16) | 16}]
+} else {
+    qreg 2 0x08 $RQBASE ; qreg 2 0x10 0x00480000 ; qreg 2 0x18 0x00490000
+    qreg 2 0x3C [expr {($EDEPTH << 16) | $EDEPTH}]
+}
 if {$ECHO} {
     # the handshake ports carry the low 13 bits of these addresses as the doorbell address;
     # rtl/send_echo.v listens for 0x004 on both (the addresses must still differ in memory)
@@ -178,7 +195,6 @@ if {$ECHO} {
 } else {
     qreg 2 0x20 [expr {0x00200000 + 0x20 + 8}] ; qreg 2 0x28 [expr {0x00200000 + 0x20}]
 }
-qreg 2 0x3C [expr {(16 << 16) | 16}]
 qreg 2 0x40 $host(psn)                                     ;# our SQ PSN = the host's RQ PSN
 qreg 2 0x44 [expr {(($host(psn) - 1) & 0xFFFFFF) | (4 << 24)}]   ;# last received = host SQ PSN - 1
 qreg 2 0x48 $host(qpn)
@@ -191,18 +207,20 @@ qreg 2 0xB0 0                                              ;# PD 0
 if {$ECHO} {
     # send WQE k: SEND of MSG bytes from receive buffer k (64 B WQE: WRID, local address,
     # length, opcode 0x02; the write data string starts with the highest-address word)
-    for {set k 0} {$k < 16} {incr k} {
+    for {set k 0} {$k < $EDEPTH} {incr k} {
         set w [lrepeat 16 0]
         lset w 0 $k
-        lset w 1 [expr {0x00400000 + $k * 4096}]
+        lset w 1 [expr {$RQBASE + $k * 4096}]
         lset w 3 $MSG
         lset w 4 0x02
         set d ""
         for {set i 15} {$i >= 0} {incr i -1} { append d [format %08x [lindex $w $i]] }
-        set t [create_hw_axi_txn w[incr ::txn] $MEM -type write -address [format %08x [expr {0x00410000 + $k * 64}]] -data $d -len 16]
+        set t [create_hw_axi_txn w[incr ::txn] $MEM -type write -address [format %08x [expr {0x00480000 + $k * 64}]] -data $d -len 16]
         run_hw_axi -quiet $t
         delete_hw_axi_txn $t
     }
+}
+if {$ECHO} {
     qreg 2 0x00 [expr {1 | (1 << 5) | (4 << 8) | (16 << 16)}]   ;# HW handshake doorbells, PMTU 4096, RQ buffers of 4 KB
 } else {
     qreg 2 0x00 [expr {$QPEN | (4 << 8) | (16 << 16)}]         ;# PMTU 4096, RQ buffers of 4 KB

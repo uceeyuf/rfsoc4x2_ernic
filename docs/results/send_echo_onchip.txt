@@ -1,0 +1,60 @@
+tests/debug_loopback.sh (MODE=echo SIZE_MB=256 ITERS=3 WINDOW=w [ECHO_MEM=ddr] [MSG=b]): 64 receive buffers, every echo compared
+host: Core Ultra 7 265K, ConnectX-4 (rocep2s0, PCIe 3.0 x16), Ubuntu 24.04, rdma-core 50, IOMMU on, host buffers on 2 MB THP
+
+== on chip, 4096 B, window 1
+run 1: 65536 echoes in 0.342 s: 6.28 Gbit/s each way, 5.22 us per message (5.22 us round trip at window 1)   compare: identical (0 of 33554432 words differ)
+run 2: 65536 echoes in 0.342 s: 6.28 Gbit/s each way, 5.22 us per message (5.22 us round trip at window 1)   compare: identical (0 of 33554432 words differ)
+ERNIC error buffer: empty
+run 3: 65536 echoes in 0.343 s: 6.27 Gbit/s each way, 5.23 us per message (5.23 us round trip at window 1)   compare: identical (0 of 33554432 words differ)
+host exit 0
+
+== on chip, 4096 B, window 12
+run 1: 65536 echoes in 0.041 s: 52.62 Gbit/s each way, 0.62 us per message (7.47 us round trip at window 12)   compare: identical (0 of 33554432 words differ)
+run 2: 65536 echoes in 0.041 s: 52.66 Gbit/s each way, 0.62 us per message (7.47 us round trip at window 12)   compare: identical (0 of 33554432 words differ)
+run 3: 65536 echoes in 0.041 s: 52.71 Gbit/s each way, 0.62 us per message (7.46 us round trip at window 12)   compare: identical (0 of 33554432 words differ)
+ERNIC error buffer: empty
+host exit 0
+
+== on chip, 4096 B, window 24
+run 1: 65536 echoes in 0.028 s: 77.75 Gbit/s each way, 0.42 us per message (10.11 us round trip at window 24)   compare: identical (0 of 33554432 words differ)
+run 2: 65536 echoes in 0.028 s: 77.88 Gbit/s each way, 0.42 us per message (10.10 us round trip at window 24)   compare: identical (0 of 33554432 words differ)
+run 3: 65536 echoes in 0.028 s: 78.03 Gbit/s each way, 0.42 us per message (10.08 us round trip at window 24)   compare: identical (0 of 33554432 words differ)
+ERNIC error buffer: empty
+host exit 0
+
+== on chip, 4096 B, window 32
+run 1: 65536 echoes in 0.025 s: 84.73 Gbit/s each way, 0.39 us per message (12.38 us round trip at window 32)   compare: identical (0 of 33554432 words differ)
+run 2: 65536 echoes in 0.025 s: 84.97 Gbit/s each way, 0.39 us per message (12.34 us round trip at window 32)   compare: identical (0 of 33554432 words differ)
+run 3: 65536 echoes in 0.025 s: 85.10 Gbit/s each way, 0.39 us per message (12.32 us round trip at window 32)   compare: identical (0 of 33554432 words differ)
+ERNIC error buffer: empty
+host exit 0
+
+== on chip, 4096 B, window 48
+run 1: 65536 echoes in 0.025 s: 87.60 Gbit/s each way, 0.37 us per message (17.96 us round trip at window 48)   compare: identical (0 of 33554432 words differ)
+run 2: 65536 echoes in 0.025 s: 87.62 Gbit/s each way, 0.37 us per message (17.95 us round trip at window 48)   compare: identical (0 of 33554432 words differ)
+run 3: 65536 echoes in 0.024 s: 87.89 Gbit/s each way, 0.37 us per message (17.90 us round trip at window 48)   compare: identical (0 of 33554432 words differ)
+ERNIC error buffer: empty
+host exit 0
+
+== on chip, 2048 B, window 48
+run 1: 131072 echoes in 0.029 s: 73.11 Gbit/s each way, 0.22 us per message (10.76 us round trip at window 48)   compare: identical (0 of 33554432 words differ)
+run 2: 131072 echoes in 0.029 s: 73.24 Gbit/s each way, 0.22 us per message (10.74 us round trip at window 48)   compare: identical (0 of 33554432 words differ)
+run 3: 131072 echoes in 0.029 s: 73.15 Gbit/s each way, 0.22 us per message (10.75 us round trip at window 48)   compare: identical (0 of 33554432 words differ)
+ERNIC error buffer: empty
+host exit 0
+
+== DDR4, 4096 B, window 12
+run 1: 65536 echoes in 0.047 s: 46.14 Gbit/s each way, 0.71 us per message (8.52 us round trip at window 12)   compare: identical (0 of 33554432 words differ)
+run 2: 65536 echoes in 0.047 s: 46.04 Gbit/s each way, 0.71 us per message (8.54 us round trip at window 12)   compare: identical (0 of 33554432 words differ)
+run 3: 65536 echoes in 0.047 s: 46.14 Gbit/s each way, 0.71 us per message (8.52 us round trip at window 12)   compare: identical (0 of 33554432 words differ)
+ERNIC error buffer: empty
+host exit 0
+
+== DDR4, 4096 B, window 32
+run 1: 65536 echoes in 0.046 s: 46.73 Gbit/s each way, 0.70 us per message (22.44 us round trip at window 32)   compare: identical (0 of 33554432 words differ)
+run 2: 65536 echoes in 0.046 s: 46.77 Gbit/s each way, 0.70 us per message (22.42 us round trip at window 32)   compare: identical (0 of 33554432 words differ)
+run 3: 65536 echoes in 0.046 s: 46.80 Gbit/s each way, 0.70 us per message (22.40 us round trip at window 32)   compare: identical (0 of 33554432 words differ)
+ERNIC error buffer: empty
+host exit 0
+
+host NIC rx_discards_phy +0

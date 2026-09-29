@@ -764,6 +764,148 @@ jtag_axi_mem jtag_mem (
 // ---------------------------------------------------------------- DDR4
 wire ui_clk, ui_rst, calib_done;
 
+// ERNIC's receive writer and WQE processor pass a 1 -> 2 address split: DDR4 (interconnect) or echo_mem
+wire wqe_ddr_awid;
+wire [31:0] wqe_ddr_awaddr;
+wire [7:0] wqe_ddr_awlen;
+wire [2:0] wqe_ddr_awsize;
+wire [1:0] wqe_ddr_awburst;
+wire wqe_ddr_awlock;
+wire [3:0] wqe_ddr_awcache;
+wire [2:0] wqe_ddr_awprot;
+wire wqe_ddr_awvalid;
+wire wqe_ddr_awready;
+wire [511:0] wqe_ddr_wdata;
+wire [63:0] wqe_ddr_wstrb;
+wire wqe_ddr_wlast;
+wire wqe_ddr_wvalid;
+wire wqe_ddr_wready;
+wire wqe_ddr_bid;
+wire [1:0] wqe_ddr_bresp;
+wire wqe_ddr_bvalid;
+wire wqe_ddr_bready;
+wire wqe_ddr_arid;
+wire [31:0] wqe_ddr_araddr;
+wire [7:0] wqe_ddr_arlen;
+wire [2:0] wqe_ddr_arsize;
+wire [1:0] wqe_ddr_arburst;
+wire wqe_ddr_arlock;
+wire [3:0] wqe_ddr_arcache;
+wire [2:0] wqe_ddr_arprot;
+wire wqe_ddr_arvalid;
+wire wqe_ddr_arready;
+wire wqe_ddr_rid;
+wire [511:0] wqe_ddr_rdata;
+wire [1:0] wqe_ddr_rresp;
+wire wqe_ddr_rlast;
+wire wqe_ddr_rvalid;
+wire wqe_ddr_rready;
+wire wqe_mem_awid;
+wire [31:0] wqe_mem_awaddr;
+wire [7:0] wqe_mem_awlen;
+wire [2:0] wqe_mem_awsize;
+wire [1:0] wqe_mem_awburst;
+wire wqe_mem_awlock;
+wire [3:0] wqe_mem_awcache;
+wire [2:0] wqe_mem_awprot;
+wire wqe_mem_awvalid;
+wire wqe_mem_awready;
+wire [511:0] wqe_mem_wdata;
+wire [63:0] wqe_mem_wstrb;
+wire wqe_mem_wlast;
+wire wqe_mem_wvalid;
+wire wqe_mem_wready;
+wire wqe_mem_bid;
+wire [1:0] wqe_mem_bresp;
+wire wqe_mem_bvalid;
+wire wqe_mem_bready;
+wire wqe_mem_arid;
+wire [31:0] wqe_mem_araddr;
+wire [7:0] wqe_mem_arlen;
+wire [2:0] wqe_mem_arsize;
+wire [1:0] wqe_mem_arburst;
+wire wqe_mem_arlock;
+wire [3:0] wqe_mem_arcache;
+wire [2:0] wqe_mem_arprot;
+wire wqe_mem_arvalid;
+wire wqe_mem_arready;
+wire wqe_mem_rid;
+wire [511:0] wqe_mem_rdata;
+wire [1:0] wqe_mem_rresp;
+wire wqe_mem_rlast;
+wire wqe_mem_rvalid;
+wire wqe_mem_rready;
+wire rxd_ddr_awid;
+wire [31:0] rxd_ddr_awaddr;
+wire [7:0] rxd_ddr_awlen;
+wire [2:0] rxd_ddr_awsize;
+wire [1:0] rxd_ddr_awburst;
+wire rxd_ddr_awlock;
+wire [3:0] rxd_ddr_awcache;
+wire [2:0] rxd_ddr_awprot;
+wire rxd_ddr_awvalid;
+wire rxd_ddr_awready;
+wire [511:0] rxd_ddr_wdata;
+wire [63:0] rxd_ddr_wstrb;
+wire rxd_ddr_wlast;
+wire rxd_ddr_wvalid;
+wire rxd_ddr_wready;
+wire rxd_ddr_bid;
+wire [1:0] rxd_ddr_bresp;
+wire rxd_ddr_bvalid;
+wire rxd_ddr_bready;
+wire rxd_ddr_arid;
+wire [31:0] rxd_ddr_araddr;
+wire [7:0] rxd_ddr_arlen;
+wire [2:0] rxd_ddr_arsize;
+wire [1:0] rxd_ddr_arburst;
+wire rxd_ddr_arlock;
+wire [3:0] rxd_ddr_arcache;
+wire [2:0] rxd_ddr_arprot;
+wire rxd_ddr_arvalid;
+wire rxd_ddr_arready;
+wire rxd_ddr_rid;
+wire [511:0] rxd_ddr_rdata;
+wire [1:0] rxd_ddr_rresp;
+wire rxd_ddr_rlast;
+wire rxd_ddr_rvalid;
+wire rxd_ddr_rready;
+wire rxd_mem_awid;
+wire [31:0] rxd_mem_awaddr;
+wire [7:0] rxd_mem_awlen;
+wire [2:0] rxd_mem_awsize;
+wire [1:0] rxd_mem_awburst;
+wire rxd_mem_awlock;
+wire [3:0] rxd_mem_awcache;
+wire [2:0] rxd_mem_awprot;
+wire rxd_mem_awvalid;
+wire rxd_mem_awready;
+wire [511:0] rxd_mem_wdata;
+wire [63:0] rxd_mem_wstrb;
+wire rxd_mem_wlast;
+wire rxd_mem_wvalid;
+wire rxd_mem_wready;
+wire rxd_mem_bid;
+wire [1:0] rxd_mem_bresp;
+wire rxd_mem_bvalid;
+wire rxd_mem_bready;
+wire rxd_mem_arid;
+wire [31:0] rxd_mem_araddr;
+wire [7:0] rxd_mem_arlen;
+wire [2:0] rxd_mem_arsize;
+wire [1:0] rxd_mem_arburst;
+wire rxd_mem_arlock;
+wire [3:0] rxd_mem_arcache;
+wire [2:0] rxd_mem_arprot;
+wire rxd_mem_arvalid;
+wire rxd_mem_arready;
+wire rxd_mem_rid;
+wire [511:0] rxd_mem_rdata;
+wire [1:0] rxd_mem_rresp;
+wire rxd_mem_rlast;
+wire rxd_mem_rvalid;
+wire rxd_mem_rready;
+
 axi_ic_0 ddr_ic (
     .INTERCONNECT_ACLK(ui_clk), .INTERCONNECT_ARESETN(!ui_rst),
     .S00_AXI_AWID(qp_mgr_awid),
@@ -803,78 +945,78 @@ axi_ic_0 ddr_ic (
     .S00_AXI_RREADY(qp_mgr_rready),
     .S00_AXI_AWQOS(4'd0), .S00_AXI_ARQOS(4'd0),
     .S00_AXI_ACLK(clk_200), .S00_AXI_ARESET_OUT_N(),
-    .S01_AXI_AWID(wqe_proc_top_awid),
-    .S01_AXI_AWADDR(wqe_proc_top_awaddr),
-    .S01_AXI_AWLEN(wqe_proc_top_awlen),
-    .S01_AXI_AWSIZE(wqe_proc_top_awsize),
-    .S01_AXI_AWBURST(wqe_proc_top_awburst),
-    .S01_AXI_AWLOCK(wqe_proc_top_awlock),
-    .S01_AXI_AWCACHE(wqe_proc_top_awcache),
-    .S01_AXI_AWPROT(wqe_proc_top_awprot),
-    .S01_AXI_AWVALID(wqe_proc_top_awvalid),
-    .S01_AXI_AWREADY(wqe_proc_top_awready),
-    .S01_AXI_WDATA(wqe_proc_top_wdata),
-    .S01_AXI_WSTRB(wqe_proc_top_wstrb),
-    .S01_AXI_WLAST(wqe_proc_top_wlast),
-    .S01_AXI_WVALID(wqe_proc_top_wvalid),
-    .S01_AXI_WREADY(wqe_proc_top_wready),
-    .S01_AXI_BID(wqe_proc_top_bid),
-    .S01_AXI_BRESP(wqe_proc_top_bresp),
-    .S01_AXI_BVALID(wqe_proc_top_bvalid),
-    .S01_AXI_BREADY(wqe_proc_top_bready),
-    .S01_AXI_ARID(wqe_proc_top_arid),
-    .S01_AXI_ARADDR(wqe_proc_top_araddr),
-    .S01_AXI_ARLEN(wqe_proc_top_arlen),
-    .S01_AXI_ARSIZE(wqe_proc_top_arsize),
-    .S01_AXI_ARBURST(wqe_proc_top_arburst),
-    .S01_AXI_ARLOCK(wqe_proc_top_arlock),
-    .S01_AXI_ARCACHE(wqe_proc_top_arcache),
-    .S01_AXI_ARPROT(wqe_proc_top_arprot),
-    .S01_AXI_ARVALID(wqe_proc_top_arvalid),
-    .S01_AXI_ARREADY(wqe_proc_top_arready),
-    .S01_AXI_RID(wqe_proc_top_rid),
-    .S01_AXI_RDATA(wqe_proc_top_rdata),
-    .S01_AXI_RRESP(wqe_proc_top_rresp),
-    .S01_AXI_RLAST(wqe_proc_top_rlast),
-    .S01_AXI_RVALID(wqe_proc_top_rvalid),
-    .S01_AXI_RREADY(wqe_proc_top_rready),
+    .S01_AXI_AWID(wqe_ddr_awid),
+    .S01_AXI_AWADDR(wqe_ddr_awaddr),
+    .S01_AXI_AWLEN(wqe_ddr_awlen),
+    .S01_AXI_AWSIZE(wqe_ddr_awsize),
+    .S01_AXI_AWBURST(wqe_ddr_awburst),
+    .S01_AXI_AWLOCK(wqe_ddr_awlock),
+    .S01_AXI_AWCACHE(wqe_ddr_awcache),
+    .S01_AXI_AWPROT(wqe_ddr_awprot),
+    .S01_AXI_AWVALID(wqe_ddr_awvalid),
+    .S01_AXI_AWREADY(wqe_ddr_awready),
+    .S01_AXI_WDATA(wqe_ddr_wdata),
+    .S01_AXI_WSTRB(wqe_ddr_wstrb),
+    .S01_AXI_WLAST(wqe_ddr_wlast),
+    .S01_AXI_WVALID(wqe_ddr_wvalid),
+    .S01_AXI_WREADY(wqe_ddr_wready),
+    .S01_AXI_BID(wqe_ddr_bid),
+    .S01_AXI_BRESP(wqe_ddr_bresp),
+    .S01_AXI_BVALID(wqe_ddr_bvalid),
+    .S01_AXI_BREADY(wqe_ddr_bready),
+    .S01_AXI_ARID(wqe_ddr_arid),
+    .S01_AXI_ARADDR(wqe_ddr_araddr),
+    .S01_AXI_ARLEN(wqe_ddr_arlen),
+    .S01_AXI_ARSIZE(wqe_ddr_arsize),
+    .S01_AXI_ARBURST(wqe_ddr_arburst),
+    .S01_AXI_ARLOCK(wqe_ddr_arlock),
+    .S01_AXI_ARCACHE(wqe_ddr_arcache),
+    .S01_AXI_ARPROT(wqe_ddr_arprot),
+    .S01_AXI_ARVALID(wqe_ddr_arvalid),
+    .S01_AXI_ARREADY(wqe_ddr_arready),
+    .S01_AXI_RID(wqe_ddr_rid),
+    .S01_AXI_RDATA(wqe_ddr_rdata),
+    .S01_AXI_RRESP(wqe_ddr_rresp),
+    .S01_AXI_RLAST(wqe_ddr_rlast),
+    .S01_AXI_RVALID(wqe_ddr_rvalid),
+    .S01_AXI_RREADY(wqe_ddr_rready),
     .S01_AXI_AWQOS(4'd0), .S01_AXI_ARQOS(4'd0),
     .S01_AXI_ACLK(clk_200), .S01_AXI_ARESET_OUT_N(),
-    .S02_AXI_AWID(rx_pkt_hndler_ddr_awid),
-    .S02_AXI_AWADDR(rx_pkt_hndler_ddr_awaddr),
-    .S02_AXI_AWLEN(rx_pkt_hndler_ddr_awlen),
-    .S02_AXI_AWSIZE(rx_pkt_hndler_ddr_awsize),
-    .S02_AXI_AWBURST(rx_pkt_hndler_ddr_awburst),
-    .S02_AXI_AWLOCK(rx_pkt_hndler_ddr_awlock),
-    .S02_AXI_AWCACHE(rx_pkt_hndler_ddr_awcache),
-    .S02_AXI_AWPROT(rx_pkt_hndler_ddr_awprot),
-    .S02_AXI_AWVALID(rx_pkt_hndler_ddr_awvalid),
-    .S02_AXI_AWREADY(rx_pkt_hndler_ddr_awready),
-    .S02_AXI_WDATA(rx_pkt_hndler_ddr_wdata),
-    .S02_AXI_WSTRB(rx_pkt_hndler_ddr_wstrb),
-    .S02_AXI_WLAST(rx_pkt_hndler_ddr_wlast),
-    .S02_AXI_WVALID(rx_pkt_hndler_ddr_wvalid),
-    .S02_AXI_WREADY(rx_pkt_hndler_ddr_wready),
-    .S02_AXI_BID(rx_pkt_hndler_ddr_bid),
-    .S02_AXI_BRESP(rx_pkt_hndler_ddr_bresp),
-    .S02_AXI_BVALID(rx_pkt_hndler_ddr_bvalid),
-    .S02_AXI_BREADY(rx_pkt_hndler_ddr_bready),
-    .S02_AXI_ARID(rx_pkt_hndler_ddr_arid),
-    .S02_AXI_ARADDR(rx_pkt_hndler_ddr_araddr),
-    .S02_AXI_ARLEN(rx_pkt_hndler_ddr_arlen),
-    .S02_AXI_ARSIZE(rx_pkt_hndler_ddr_arsize),
-    .S02_AXI_ARBURST(rx_pkt_hndler_ddr_arburst),
-    .S02_AXI_ARLOCK(rx_pkt_hndler_ddr_arlock),
-    .S02_AXI_ARCACHE(rx_pkt_hndler_ddr_arcache),
-    .S02_AXI_ARPROT(rx_pkt_hndler_ddr_arprot),
-    .S02_AXI_ARVALID(rx_pkt_hndler_ddr_arvalid),
-    .S02_AXI_ARREADY(rx_pkt_hndler_ddr_arready),
-    .S02_AXI_RID(rx_pkt_hndler_ddr_rid),
-    .S02_AXI_RDATA(rx_pkt_hndler_ddr_rdata),
-    .S02_AXI_RRESP(rx_pkt_hndler_ddr_rresp),
-    .S02_AXI_RLAST(rx_pkt_hndler_ddr_rlast),
-    .S02_AXI_RVALID(rx_pkt_hndler_ddr_rvalid),
-    .S02_AXI_RREADY(rx_pkt_hndler_ddr_rready),
+    .S02_AXI_AWID(rxd_ddr_awid),
+    .S02_AXI_AWADDR(rxd_ddr_awaddr),
+    .S02_AXI_AWLEN(rxd_ddr_awlen),
+    .S02_AXI_AWSIZE(rxd_ddr_awsize),
+    .S02_AXI_AWBURST(rxd_ddr_awburst),
+    .S02_AXI_AWLOCK(rxd_ddr_awlock),
+    .S02_AXI_AWCACHE(rxd_ddr_awcache),
+    .S02_AXI_AWPROT(rxd_ddr_awprot),
+    .S02_AXI_AWVALID(rxd_ddr_awvalid),
+    .S02_AXI_AWREADY(rxd_ddr_awready),
+    .S02_AXI_WDATA(rxd_ddr_wdata),
+    .S02_AXI_WSTRB(rxd_ddr_wstrb),
+    .S02_AXI_WLAST(rxd_ddr_wlast),
+    .S02_AXI_WVALID(rxd_ddr_wvalid),
+    .S02_AXI_WREADY(rxd_ddr_wready),
+    .S02_AXI_BID(rxd_ddr_bid),
+    .S02_AXI_BRESP(rxd_ddr_bresp),
+    .S02_AXI_BVALID(rxd_ddr_bvalid),
+    .S02_AXI_BREADY(rxd_ddr_bready),
+    .S02_AXI_ARID(rxd_ddr_arid),
+    .S02_AXI_ARADDR(rxd_ddr_araddr),
+    .S02_AXI_ARLEN(rxd_ddr_arlen),
+    .S02_AXI_ARSIZE(rxd_ddr_arsize),
+    .S02_AXI_ARBURST(rxd_ddr_arburst),
+    .S02_AXI_ARLOCK(rxd_ddr_arlock),
+    .S02_AXI_ARCACHE(rxd_ddr_arcache),
+    .S02_AXI_ARPROT(rxd_ddr_arprot),
+    .S02_AXI_ARVALID(rxd_ddr_arvalid),
+    .S02_AXI_ARREADY(rxd_ddr_arready),
+    .S02_AXI_RID(rxd_ddr_rid),
+    .S02_AXI_RDATA(rxd_ddr_rdata),
+    .S02_AXI_RRESP(rxd_ddr_rresp),
+    .S02_AXI_RLAST(rxd_ddr_rlast),
+    .S02_AXI_RVALID(rxd_ddr_rvalid),
+    .S02_AXI_RREADY(rxd_ddr_rready),
     .S02_AXI_AWQOS(4'd0), .S02_AXI_ARQOS(4'd0),
     .S02_AXI_ACLK(clk_200), .S02_AXI_ARESET_OUT_N(),
     .S03_AXI_AWID(rx_pkt_hndler_rdrsp_awid),
@@ -1120,12 +1262,81 @@ always @(posedge mac_clk) begin
 end
 wire [7:0] status = {5'd0, status_cdc_sr[1]};
 
+// ---------------------------------------------------------------- echo_mem (0x8000_0000) behind two address splits
+axi_split2 wqe_split (
+    .clk(clk_200), .rst(rst_200),
+    .s_awid(wqe_proc_top_awid), .s_awaddr(wqe_proc_top_awaddr), .s_awlen(wqe_proc_top_awlen), .s_awsize(wqe_proc_top_awsize), .s_awburst(wqe_proc_top_awburst), .s_awlock(wqe_proc_top_awlock), .s_awcache(wqe_proc_top_awcache), .s_awprot(wqe_proc_top_awprot), .s_wdata(wqe_proc_top_wdata), .s_wstrb(wqe_proc_top_wstrb), .s_wlast(wqe_proc_top_wlast),
+    .s_arid(wqe_proc_top_arid), .s_araddr(wqe_proc_top_araddr), .s_arlen(wqe_proc_top_arlen), .s_arsize(wqe_proc_top_arsize), .s_arburst(wqe_proc_top_arburst), .s_arlock(wqe_proc_top_arlock), .s_arcache(wqe_proc_top_arcache), .s_arprot(wqe_proc_top_arprot), .s_awvalid(wqe_proc_top_awvalid), .s_awready(wqe_proc_top_awready), .s_wvalid(wqe_proc_top_wvalid), .s_wready(wqe_proc_top_wready), .s_bid(wqe_proc_top_bid), .s_bresp(wqe_proc_top_bresp), .s_bvalid(wqe_proc_top_bvalid), .s_bready(wqe_proc_top_bready), .s_arvalid(wqe_proc_top_arvalid), .s_arready(wqe_proc_top_arready), .s_rid(wqe_proc_top_rid), .s_rdata(wqe_proc_top_rdata), .s_rresp(wqe_proc_top_rresp), .s_rlast(wqe_proc_top_rlast), .s_rvalid(wqe_proc_top_rvalid), .s_rready(wqe_proc_top_rready),
+    .m_awid(wqe_ddr_awid), .m_awaddr(wqe_ddr_awaddr), .m_awlen(wqe_ddr_awlen), .m_awsize(wqe_ddr_awsize), .m_awburst(wqe_ddr_awburst), .m_awlock(wqe_ddr_awlock), .m_awcache(wqe_ddr_awcache), .m_awprot(wqe_ddr_awprot), .m_wdata(wqe_ddr_wdata), .m_wstrb(wqe_ddr_wstrb), .m_wlast(wqe_ddr_wlast), .m_arid(wqe_ddr_arid), .m_araddr(wqe_ddr_araddr), .m_arlen(wqe_ddr_arlen), .m_arsize(wqe_ddr_arsize), .m_arburst(wqe_ddr_arburst), .m_arlock(wqe_ddr_arlock), .m_arcache(wqe_ddr_arcache), .m_arprot(wqe_ddr_arprot),
+    .m_awvalid({wqe_mem_awvalid, wqe_ddr_awvalid}),
+    .m_awready({wqe_mem_awready, wqe_ddr_awready}),
+    .m_wvalid({wqe_mem_wvalid, wqe_ddr_wvalid}),
+    .m_wready({wqe_mem_wready, wqe_ddr_wready}),
+    .m_bid({wqe_mem_bid, wqe_ddr_bid}),
+    .m_bresp({wqe_mem_bresp, wqe_ddr_bresp}),
+    .m_bvalid({wqe_mem_bvalid, wqe_ddr_bvalid}),
+    .m_bready({wqe_mem_bready, wqe_ddr_bready}),
+    .m_arvalid({wqe_mem_arvalid, wqe_ddr_arvalid}),
+    .m_arready({wqe_mem_arready, wqe_ddr_arready}),
+    .m_rid({wqe_mem_rid, wqe_ddr_rid}),
+    .m_rdata({wqe_mem_rdata, wqe_ddr_rdata}),
+    .m_rresp({wqe_mem_rresp, wqe_ddr_rresp}),
+    .m_rlast({wqe_mem_rlast, wqe_ddr_rlast}),
+    .m_rvalid({wqe_mem_rvalid, wqe_ddr_rvalid}),
+    .m_rready({wqe_mem_rready, wqe_ddr_rready})
+);
+assign {wqe_mem_awid, wqe_mem_awaddr, wqe_mem_awlen, wqe_mem_awsize, wqe_mem_awburst, wqe_mem_awlock, wqe_mem_awcache, wqe_mem_awprot, wqe_mem_wdata, wqe_mem_wstrb, wqe_mem_wlast, wqe_mem_arid, wqe_mem_araddr, wqe_mem_arlen, wqe_mem_arsize, wqe_mem_arburst, wqe_mem_arlock, wqe_mem_arcache, wqe_mem_arprot} =
+       {wqe_ddr_awid, wqe_ddr_awaddr, wqe_ddr_awlen, wqe_ddr_awsize, wqe_ddr_awburst, wqe_ddr_awlock, wqe_ddr_awcache, wqe_ddr_awprot, wqe_ddr_wdata, wqe_ddr_wstrb, wqe_ddr_wlast, wqe_ddr_arid, wqe_ddr_araddr, wqe_ddr_arlen, wqe_ddr_arsize, wqe_ddr_arburst, wqe_ddr_arlock, wqe_ddr_arcache, wqe_ddr_arprot};
+
+axi_split2 rxd_split (
+    .clk(clk_200), .rst(rst_200),
+    .s_awid(rx_pkt_hndler_ddr_awid), .s_awaddr(rx_pkt_hndler_ddr_awaddr), .s_awlen(rx_pkt_hndler_ddr_awlen), .s_awsize(rx_pkt_hndler_ddr_awsize), .s_awburst(rx_pkt_hndler_ddr_awburst), .s_awlock(rx_pkt_hndler_ddr_awlock), .s_awcache(rx_pkt_hndler_ddr_awcache), .s_awprot(rx_pkt_hndler_ddr_awprot), .s_wdata(rx_pkt_hndler_ddr_wdata), .s_wstrb(rx_pkt_hndler_ddr_wstrb), .s_wlast(rx_pkt_hndler_ddr_wlast),
+    .s_arid(rx_pkt_hndler_ddr_arid), .s_araddr(rx_pkt_hndler_ddr_araddr), .s_arlen(rx_pkt_hndler_ddr_arlen), .s_arsize(rx_pkt_hndler_ddr_arsize), .s_arburst(rx_pkt_hndler_ddr_arburst), .s_arlock(rx_pkt_hndler_ddr_arlock), .s_arcache(rx_pkt_hndler_ddr_arcache), .s_arprot(rx_pkt_hndler_ddr_arprot), .s_awvalid(rx_pkt_hndler_ddr_awvalid), .s_awready(rx_pkt_hndler_ddr_awready), .s_wvalid(rx_pkt_hndler_ddr_wvalid), .s_wready(rx_pkt_hndler_ddr_wready), .s_bid(rx_pkt_hndler_ddr_bid), .s_bresp(rx_pkt_hndler_ddr_bresp), .s_bvalid(rx_pkt_hndler_ddr_bvalid), .s_bready(rx_pkt_hndler_ddr_bready), .s_arvalid(rx_pkt_hndler_ddr_arvalid), .s_arready(rx_pkt_hndler_ddr_arready), .s_rid(rx_pkt_hndler_ddr_rid), .s_rdata(rx_pkt_hndler_ddr_rdata), .s_rresp(rx_pkt_hndler_ddr_rresp), .s_rlast(rx_pkt_hndler_ddr_rlast), .s_rvalid(rx_pkt_hndler_ddr_rvalid), .s_rready(rx_pkt_hndler_ddr_rready),
+    .m_awid(rxd_ddr_awid), .m_awaddr(rxd_ddr_awaddr), .m_awlen(rxd_ddr_awlen), .m_awsize(rxd_ddr_awsize), .m_awburst(rxd_ddr_awburst), .m_awlock(rxd_ddr_awlock), .m_awcache(rxd_ddr_awcache), .m_awprot(rxd_ddr_awprot), .m_wdata(rxd_ddr_wdata), .m_wstrb(rxd_ddr_wstrb), .m_wlast(rxd_ddr_wlast), .m_arid(rxd_ddr_arid), .m_araddr(rxd_ddr_araddr), .m_arlen(rxd_ddr_arlen), .m_arsize(rxd_ddr_arsize), .m_arburst(rxd_ddr_arburst), .m_arlock(rxd_ddr_arlock), .m_arcache(rxd_ddr_arcache), .m_arprot(rxd_ddr_arprot),
+    .m_awvalid({rxd_mem_awvalid, rxd_ddr_awvalid}),
+    .m_awready({rxd_mem_awready, rxd_ddr_awready}),
+    .m_wvalid({rxd_mem_wvalid, rxd_ddr_wvalid}),
+    .m_wready({rxd_mem_wready, rxd_ddr_wready}),
+    .m_bid({rxd_mem_bid, rxd_ddr_bid}),
+    .m_bresp({rxd_mem_bresp, rxd_ddr_bresp}),
+    .m_bvalid({rxd_mem_bvalid, rxd_ddr_bvalid}),
+    .m_bready({rxd_mem_bready, rxd_ddr_bready}),
+    .m_arvalid({rxd_mem_arvalid, rxd_ddr_arvalid}),
+    .m_arready({rxd_mem_arready, rxd_ddr_arready}),
+    .m_rid({rxd_mem_rid, rxd_ddr_rid}),
+    .m_rdata({rxd_mem_rdata, rxd_ddr_rdata}),
+    .m_rresp({rxd_mem_rresp, rxd_ddr_rresp}),
+    .m_rlast({rxd_mem_rlast, rxd_ddr_rlast}),
+    .m_rvalid({rxd_mem_rvalid, rxd_ddr_rvalid}),
+    .m_rready({rxd_mem_rready, rxd_ddr_rready})
+);
+assign {rxd_mem_awid, rxd_mem_awaddr, rxd_mem_awlen, rxd_mem_awsize, rxd_mem_awburst, rxd_mem_awlock, rxd_mem_awcache, rxd_mem_awprot, rxd_mem_wdata, rxd_mem_wstrb, rxd_mem_wlast, rxd_mem_arid, rxd_mem_araddr, rxd_mem_arlen, rxd_mem_arsize, rxd_mem_arburst, rxd_mem_arlock, rxd_mem_arcache, rxd_mem_arprot} =
+       {rxd_ddr_awid, rxd_ddr_awaddr, rxd_ddr_awlen, rxd_ddr_awsize, rxd_ddr_awburst, rxd_ddr_awlock, rxd_ddr_awcache, rxd_ddr_awprot, rxd_ddr_wdata, rxd_ddr_wstrb, rxd_ddr_wlast, rxd_ddr_arid, rxd_ddr_araddr, rxd_ddr_arlen, rxd_ddr_arsize, rxd_ddr_arburst, rxd_ddr_arlock, rxd_ddr_arcache, rxd_ddr_arprot};
+
+echo_mem #(.DEPTH(64), .BUF_BYTES(4096), .BASE(32'h8000_0000)) echo_mem_inst (
+    .clk(clk_200), .rst(rst_200),
+    .a_awid(rxd_mem_awid), .a_awaddr(rxd_mem_awaddr), .a_awlen(rxd_mem_awlen), .a_awsize(rxd_mem_awsize),
+    .a_awvalid(rxd_mem_awvalid), .a_awready(rxd_mem_awready),
+    .a_wdata(rxd_mem_wdata), .a_wstrb(rxd_mem_wstrb), .a_wlast(rxd_mem_wlast), .a_wvalid(rxd_mem_wvalid), .a_wready(rxd_mem_wready),
+    .a_bid(rxd_mem_bid), .a_bresp(rxd_mem_bresp), .a_bvalid(rxd_mem_bvalid), .a_bready(rxd_mem_bready),
+    .a_arid(rxd_mem_arid), .a_arlen(rxd_mem_arlen), .a_arvalid(rxd_mem_arvalid), .a_arready(rxd_mem_arready),
+    .a_rid(rxd_mem_rid), .a_rdata(rxd_mem_rdata), .a_rresp(rxd_mem_rresp), .a_rlast(rxd_mem_rlast),
+    .a_rvalid(rxd_mem_rvalid), .a_rready(rxd_mem_rready),
+    .b_arid(wqe_mem_arid), .b_araddr(wqe_mem_araddr), .b_arlen(wqe_mem_arlen), .b_arsize(wqe_mem_arsize),
+    .b_arvalid(wqe_mem_arvalid), .b_arready(wqe_mem_arready),
+    .b_rid(wqe_mem_rid), .b_rdata(wqe_mem_rdata), .b_rresp(wqe_mem_rresp), .b_rlast(wqe_mem_rlast),
+    .b_rvalid(wqe_mem_rvalid), .b_rready(wqe_mem_rready),
+    .b_awid(wqe_mem_awid), .b_awvalid(wqe_mem_awvalid), .b_awready(wqe_mem_awready),
+    .b_wlast(wqe_mem_wlast), .b_wvalid(wqe_mem_wvalid), .b_wready(wqe_mem_wready),
+    .b_bid(wqe_mem_bid), .b_bresp(wqe_mem_bresp), .b_bvalid(wqe_mem_bvalid), .b_bready(wqe_mem_bready)
+);
+
 // ---------------------------------------------------------------- hardware SEND echo (QP2)
 wire [15:0] e_rq_db, e_cq_db, e_other_db, e_sq_pidb, e_rq_cidb;
 wire [31:0] e_last_rq, e_last_cq;
 wire        echo_rst;                          // pulsed by tests/ernic_config.tcl while configuring
 
-send_echo #(.QP(2), .DEPTH(16)) echo_inst (
+send_echo #(.QP(2), .DEPTH(64)) echo_inst (
     .clk(clk_200), .rst(rst_200 || echo_rst),
     .rq_db_data(rq_db_data), .rq_db_addr(rq_db_addr), .rq_db_valid(rq_db_valid), .rq_db_rdy(rq_db_rdy),
     .cq_db_cnt(cq_db_cnt), .cq_db_addr(cq_db_addr), .cq_db_valid(cq_db_valid), .cq_db_rdy(cq_db_rdy),

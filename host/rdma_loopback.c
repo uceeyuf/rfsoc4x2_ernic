@@ -7,7 +7,7 @@
 // DDR4), RDMA READs it back into a second buffer and compares; both directions are timed.
 // Echo mode (--mode echo): the host SENDs fixed-size messages, the FPGA fabric (rtl/send_echo.v)
 // SENDs each one back without the CPU, and the host compares the echoes; at most --window
-// messages are outstanding (the FPGA has 16 receive buffers). No connection manager: the QP
+// messages are outstanding (the FPGA has 64 receive buffers). No connection manager: the QP
 // is connected by hand. The host QP number, MAC and PSN go to a file for the FPGA side
 // (tests/ernic_config.tcl programs ERNIC with them); the program waits until that file's
 // "ready" twin appears, then moves the QP to RTS.
@@ -85,7 +85,7 @@ static void parse(int argc, char **argv)
         else if (!strcmp(k, "--iters")) O.iters = atoi(v);
         else if (!strcmp(k, "--psn")) O.psn = (uint32_t)strtoul(v, NULL, 0);
         else if (!strcmp(k, "--params")) O.params = v;
-        else if (!strcmp(k, "--mode")) O.echo = !strcmp(v, "echo");
+        else if (!strcmp(k, "--mode")) O.echo = !strcmp(v, "echo") ? 1 : !strcmp(v, "bidir") ? 2 : 0;
         else if (!strcmp(k, "--msg")) O.msg = (uint32_t)strtoul(v, NULL, 0);
         else if (!strcmp(k, "--window")) O.window = atoi(v);
         else { fprintf(stderr, "unknown option %s\n", k); exit(1); }
@@ -126,37 +126,54 @@ static double transfer(struct ibv_qp *qp, struct ibv_cq *cq, struct ibv_mr *mr, 
 }
 
 // send O.size bytes as O.msg-byte SENDs, at most O.window unanswered; the FPGA sends every
-// message back, received in order into rbuf. Returns seconds from the first send to the last echo.
+// message back, received in order into rbuf. Receives and sends are posted as linked lists of up
+// to 32, and only every 16th SEND asks for a completion. Returns seconds from the first send to
+// the last echo.
 static double echo(struct ibv_qp *qp, struct ibv_cq *scq, struct ibv_cq *rcq, struct ibv_mr *wmr,
                    struct ibv_mr *rmr, int *errors)
 {
-    uint64_t n = O.size / O.msg, sent = 0, echoed = 0, recvs = 0;
-    const uint64_t RQ = 256;
+    enum { BATCH = 32, SIGNAL = 16, RQ = 256 };
+    uint64_t n = O.size / O.msg, sent = 0, echoed = 0, recvs = 0, signaled = 0, completed = 0;
+    struct ibv_sge sge[BATCH];
+    struct ibv_recv_wr rwr[BATCH], *rbad;
+    struct ibv_send_wr swr[BATCH], *sbad;
     double t0 = now();
     while (echoed < n) {
-        while (recvs < n && recvs - echoed < RQ) {
-            struct ibv_sge sge = {.addr = (uintptr_t)rmr->addr + recvs * O.msg, .length = O.msg, .lkey = rmr->lkey};
-            struct ibv_recv_wr wr = {.wr_id = recvs, .sg_list = &sge, .num_sge = 1}, *bad;
-            if (ibv_post_recv(qp, &wr, &bad)) die("ibv_post_recv");
-            recvs++;
+        int k = 0;
+        while (recvs + k < n && recvs + k - echoed < RQ && k < BATCH) {
+            uint64_t j = recvs + k;
+            sge[k] = (struct ibv_sge){.addr = (uintptr_t)rmr->addr + j * O.msg, .length = O.msg, .lkey = rmr->lkey};
+            rwr[k] = (struct ibv_recv_wr){.wr_id = j, .sg_list = &sge[k], .num_sge = 1, .next = NULL};
+            if (k) rwr[k - 1].next = &rwr[k];
+            k++;
         }
-        while (sent < n && sent - echoed < (uint64_t)O.window) {
-            struct ibv_sge sge = {.addr = (uintptr_t)wmr->addr + sent * O.msg, .length = O.msg, .lkey = wmr->lkey};
-            struct ibv_send_wr wr = {.wr_id = sent, .sg_list = &sge, .num_sge = 1, .opcode = IBV_WR_SEND,
-                                     .send_flags = IBV_SEND_SIGNALED}, *bad;
-            if (ibv_post_send(qp, &wr, &bad)) die("ibv_post_send");
-            sent++;
+        if (k && ibv_post_recv(qp, rwr, &rbad)) die("ibv_post_recv");
+        recvs += (uint64_t)k;
+
+        k = 0;
+        while (sent + k < n && sent + k - echoed < (uint64_t)O.window && k < BATCH) {
+            uint64_t j = sent + k;
+            sge[k] = (struct ibv_sge){.addr = (uintptr_t)wmr->addr + j * O.msg, .length = O.msg, .lkey = wmr->lkey};
+            swr[k] = (struct ibv_send_wr){.wr_id = j, .sg_list = &sge[k], .num_sge = 1, .opcode = IBV_WR_SEND,
+                                          .send_flags = (j % SIGNAL == SIGNAL - 1 || j == n - 1) ? IBV_SEND_SIGNALED : 0};
+            if (k) swr[k - 1].next = &swr[k];
+            signaled += (swr[k].send_flags & IBV_SEND_SIGNALED) != 0;
+            k++;
         }
-        struct ibv_wc wc[32];
-        int k = ibv_poll_cq(scq, 32, wc);
+        if (k && ibv_post_send(qp, swr, &sbad)) die("ibv_post_send");
+        sent += (uint64_t)k;
+
+        struct ibv_wc wc[64];
+        k = ibv_poll_cq(scq, 64, wc);
         if (k < 0) die("ibv_poll_cq");
+        completed += (uint64_t)k;
         for (int i = 0; i < k; i++)
             if (wc[i].status != IBV_WC_SUCCESS) {
                 fprintf(stderr, "SEND wr %" PRIu64 ": %s (vendor err 0x%x)\n", wc[i].wr_id,
                         ibv_wc_status_str(wc[i].status), wc[i].vendor_err);
                 if (++*errors > 4) exit(1);
             }
-        k = ibv_poll_cq(rcq, 32, wc);
+        k = ibv_poll_cq(rcq, 64, wc);
         if (k < 0) die("ibv_poll_cq");
         for (int i = 0; i < k; i++) {
             if (wc[i].status != IBV_WC_SUCCESS || wc[i].byte_len != O.msg) {
@@ -170,6 +187,50 @@ static double echo(struct ibv_qp *qp, struct ibv_cq *scq, struct ibv_cq *rcq, st
             fprintf(stderr, "timeout: %" PRIu64 " sent, %" PRIu64 " echoed of %" PRIu64 "\n", sent, echoed, n);
             exit(1);
         }
+    }
+    double t = now() - t0;
+    // collect the remaining send completions so the next run starts with an empty send queue
+    for (struct ibv_wc wc; completed < signaled && now() - t0 < 30;)
+        completed += (uint64_t)(ibv_poll_cq(scq, 1, &wc) > 0);
+    return t;
+}
+
+// RDMA WRITE and READ at the same time: O.size bytes each way in O.chunk operations, O.depth of
+// each in flight, WRITEs to the first half of the remote region (O.va, O.rkey; 256 KB of echo_mem
+// with MR 1) and READs from the second half. Loads the host NIC and PCIe both ways like the echo,
+// through ERNIC's responder instead of its SEND path. Returns seconds.
+static double bidir(struct ibv_qp *qp, struct ibv_cq *cq, struct ibv_mr *wmr, struct ibv_mr *rmr, int *errors)
+{
+    const uint64_t half = 128 << 10, n = O.size / O.chunk, slots = half / O.chunk;
+    uint64_t posted[2] = {0, 0}, done[2] = {0, 0};
+    double t0 = now();
+    while (done[0] < n || done[1] < n) {
+        for (int d = 0; d < 2; d++)
+            while (posted[d] < n && posted[d] - done[d] < (uint64_t)O.depth) {
+                uint64_t j = posted[d];
+                struct ibv_mr *mr = d ? rmr : wmr;
+                struct ibv_sge sge = {.addr = (uintptr_t)mr->addr + (j % slots) * O.chunk, .length = (uint32_t)O.chunk,
+                                      .lkey = mr->lkey};
+                struct ibv_send_wr wr = {.wr_id = (j << 1) | (uint64_t)d, .sg_list = &sge, .num_sge = 1,
+                                         .opcode = d ? IBV_WR_RDMA_READ : IBV_WR_RDMA_WRITE,
+                                         .send_flags = IBV_SEND_SIGNALED}, *bad;
+                wr.wr.rdma.remote_addr = O.va + (d ? half : 0) + (j % slots) * O.chunk;
+                wr.wr.rdma.rkey = O.rkey;
+                if (ibv_post_send(qp, &wr, &bad)) die("ibv_post_send");
+                posted[d]++;
+            }
+        struct ibv_wc wc[32];
+        int k = ibv_poll_cq(cq, 32, wc);
+        if (k < 0) die("ibv_poll_cq");
+        for (int i = 0; i < k; i++) {
+            if (wc[i].status != IBV_WC_SUCCESS) {
+                fprintf(stderr, "%s: %s (vendor err 0x%x)\n", wc[i].wr_id & 1 ? "READ" : "WRITE",
+                        ibv_wc_status_str(wc[i].status), wc[i].vendor_err);
+                if (++*errors > 4) exit(1);
+            }
+            done[wc[i].wr_id & 1]++;
+        }
+        if (now() - t0 > 30) { fprintf(stderr, "timeout\n"); exit(1); }
     }
     return now() - t0;
 }
@@ -208,8 +269,8 @@ int main(int argc, char **argv)
                                    .cap = {.max_send_wr = 512, .max_recv_wr = 256, .max_send_sge = 1, .max_recv_sge = 1}};
     struct ibv_qp *qp = ibv_create_qp(pd, &qia);
     if (!cq || !rcq || !qp) die("create cq/qp");
-    if (O.echo && (O.msg == 0 || O.msg > 4096 || O.size % O.msg || O.window < 1 || O.window > 16)) {
-        fprintf(stderr, "echo: --msg 1..4096 dividing --size, --window 1..16\n");
+    if (O.echo == 1 && (O.msg == 0 || O.msg > 4096 || O.size % O.msg || O.window < 1 || O.window > 64)) {
+        fprintf(stderr, "echo: --msg 1..4096 dividing --size, --window 1..64 (the FPGA has 64 receive buffers)\n");
         return 1;
     }
 
@@ -233,7 +294,7 @@ int main(int argc, char **argv)
     f = fopen(O.params, "w");
     if (!f) die(O.params);
     fprintf(f, "qpn %u\nmac %s\npsn %u\n", qp->qp_num, mac, O.psn);
-    if (O.echo) fprintf(f, "mode echo\nmsg %u\n", O.msg);
+    if (O.echo == 1) fprintf(f, "mode echo\nmsg %u\n", O.msg);
     fclose(f);
     printf("waiting for the FPGA side (%s) ...\n", ready);
     fflush(stdout);
@@ -274,13 +335,15 @@ int main(int argc, char **argv)
                                   IBV_QP_RNR_RETRY | IBV_QP_MAX_QP_RD_ATOMIC)) die("RTS");
     printf("connected to QP %d at %u.%u.%u.%u; ", O.fpga_qpn, O.fpga_ip >> 24, (O.fpga_ip >> 16) & 255,
            (O.fpga_ip >> 8) & 255, O.fpga_ip & 255);
-    if (O.echo)
+    if (O.echo == 2)
+        printf("WRITE + READ of %" PRIu64 " MB each in %" PRIu64 " KB ops, %d of each in flight\n", O.size >> 20, O.chunk >> 10, O.depth);
+    else if (O.echo)
         printf("echo of %" PRIu64 " MB in %u B SENDs, %d outstanding\n", O.size >> 20, O.msg, O.window);
     else
         printf("%" PRIu64 " MB in %" PRIu64 " KB RDMA ops, %d in flight\n", O.size >> 20, O.chunk >> 10, O.depth);
 
     int errors = 0;
-    for (int it = 1; O.echo && it <= O.iters; it++) {
+    for (int it = 1; O.echo == 1 && it <= O.iters; it++) {
         for (uint64_t i = 0; i < O.size / 8; i++) ((uint64_t *)wbuf)[i] ^= (uint64_t)it << 56;
         memset(rbuf, 0, O.size);
         double t = echo(qp, cq, rcq, wmr, rmr, &errors);
@@ -290,6 +353,11 @@ int main(int argc, char **argv)
                "at window %d)   compare: %s (%" PRIu64 " of %" PRIu64 " words differ)\n",
                it, n, t, O.size * 8 / t / 1e9, t / n * 1e6, t / n * O.window * 1e6, O.window,
                bad ? "MISMATCH" : "identical", bad, O.size / 8);
+        fflush(stdout);
+    }
+    for (int it = 1; O.echo == 2 && it <= O.iters; it++) {
+        double t = bidir(qp, cq, wmr, rmr, &errors);
+        printf("run %d: WRITE and READ at the same time, %.2f Gbit/s each way\n", it, O.size * 8 / t / 1e9);
         fflush(stdout);
     }
     for (int it = 1; !O.echo && it <= O.iters; it++) {
