@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 420" width="980" height="420" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#444"/>
+    </marker>
+  </defs>
+  <rect width="980" height="420" fill="#ffffff"/>
+  <rect x="10" y="30" width="800" height="345" rx="8" fill="none" stroke="#999" stroke-dasharray="6 4"/>
+  <text x="18" y="22" font-weight="bold" fill="#333">RFSoC 4x2 PL (XCZU48DR)</text>
+
+  <g text-anchor="middle">
+    <!-- Xilinx IP: gray -->
+    <rect x="25" y="150" width="110" height="80" rx="6" fill="#f2f2f2" stroke="#777"/>
+    <text x="80" y="177" font-weight="bold">CMAC</text><text x="80" y="195">100GbE, RS-FEC</text><text x="80" y="213" fill="#555">322 MHz</text>
+
+    <!-- this design: green -->
+    <rect x="165" y="50" width="130" height="64" rx="6" fill="#d5e8d4" stroke="#82b366"/>
+    <text x="230" y="73" font-weight="bold">roce_rx_filter</text><text x="230" y="91">UDP 4791 only</text><text x="230" y="107" fill="#555">+ arp_responder</text>
+
+    <!-- verilog-ethernet: blue -->
+    <rect x="325" y="50" width="130" height="64" rx="6" fill="#dae8fc" stroke="#6c8ebf"/>
+    <text x="390" y="73" font-weight="bold">async frame FIFO</text><text x="390" y="91">64 KB</text><text x="390" y="107" fill="#555">322 → 200 MHz</text>
+
+    <rect x="165" y="266" width="130" height="64" rx="6" fill="#dae8fc" stroke="#6c8ebf"/>
+    <text x="230" y="289" font-weight="bold">TX frame FIFO</text><text x="230" y="307">32 KB, store &amp; fwd</text><text x="230" y="323" fill="#555">ERNIC + ARP replies</text>
+
+    <!-- ERNIC: orange -->
+    <rect x="485" y="50" width="150" height="280" rx="6" fill="#ffe6cc" stroke="#d79b00"/>
+    <text x="560" y="80" font-weight="bold">ERNIC v4.0</text>
+    <text x="560" y="100">RoCE v2, RC QPs</text>
+    <text x="560" y="130" fill="#555">RX packet handler</text>
+    <text x="560" y="150" fill="#555">WQE processor</text>
+    <text x="560" y="170" fill="#555">response handler</text>
+    <text x="560" y="190" fill="#555">QP manager</text>
+    <text x="560" y="225">512 bit @ 200 MHz</text>
+    <text x="560" y="245" fill="#555">5 AXI4 masters</text>
+    <text x="560" y="300" fill="#555">TX on the CMAC clock</text>
+
+    <rect x="665" y="120" width="130" height="64" rx="6" fill="#f2f2f2" stroke="#777"/>
+    <text x="730" y="143" font-weight="bold">AXI interconnect</text><text x="730" y="161">6 → 1, 512 bit</text><text x="730" y="177" fill="#555">200 → 250 MHz</text>
+
+    <rect x="665" y="230" width="130" height="64" rx="6" fill="#f2f2f2" stroke="#777"/>
+    <text x="730" y="253" font-weight="bold">PL DDR4-2000</text><text x="730" y="271">MIG, 4 GB</text><text x="730" y="287" fill="#555">queues + 256 MB MR</text>
+
+    <rect x="485" y="340" width="310" height="30" rx="6" fill="#f2f2f2" stroke="#777"/>
+    <text x="640" y="360">JTAG-to-AXI (ERNIC registers, DDR4) · VIO counters</text>
+
+    <!-- host -->
+    <rect x="835" y="130" width="130" height="130" rx="6" fill="#fff" stroke="#555"/>
+    <text x="900" y="155" font-weight="bold">PC</text><text x="900" y="175">ConnectX-4</text><text x="900" y="193">rdma-core</text><text x="900" y="211">(libibverbs)</text><text x="900" y="229" fill="#555">rdma_loopback</text>
+  </g>
+
+  <g stroke="#444" stroke-width="1.6" fill="none" marker-end="url(#a)">
+    <path d="M80,150 L80,82 L163,82"/>
+    <path d="M295,82 L323,82"/>
+    <path d="M455,82 L483,82"/>
+    <path d="M485,298 L297,298"/>
+    <path d="M165,298 L80,298 L80,232"/>
+    <path d="M637,152 L663,152"/>
+    <path d="M730,186 L730,228"/>
+    <path d="M230,114 L230,264"/>
+  </g>
+  <text x="815" y="195" font-size="11" fill="#555" text-anchor="middle">QSFP28</text>
+  <line x1="812" y1="205" x2="833" y2="205" stroke="#444" stroke-width="1.6" marker-end="url(#a)" marker-start="url(#a)"/>
+
+  <g font-size="11" fill="#333">
+    <rect x="20" y="392" width="14" height="10" fill="#f2f2f2" stroke="#777"/><text x="40" y="401">Xilinx IP</text>
+    <rect x="110" y="392" width="14" height="10" fill="#ffe6cc" stroke="#d79b00"/><text x="130" y="401">ERNIC (licensed IP)</text>
+    <rect x="250" y="392" width="14" height="10" fill="#dae8fc" stroke="#6c8ebf"/><text x="270" y="401">verilog-ethernet</text>
+    <rect x="380" y="392" width="14" height="10" fill="#d5e8d4" stroke="#82b366"/><text x="400" y="401">this design</text>
+  </g>
+</svg>

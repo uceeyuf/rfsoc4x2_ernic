@@ -1,0 +1,16 @@
+tests/debug_loopback.sh  (ITERS=5 SIZE_MB=256 CHUNK_KB=1024): 256 MB per direction, 1 MB RDMA operations, 32 in flight
+host: Core Ultra 7 265K, ConnectX-4 (rocep2s0, PCIe 3.0 x16), Ubuntu 24.04, rdma-core 50, IOMMU on, host buffers on 2 MB THP
+
+connected to QP 2 at 192.168.100.1; 256 MB in 1024 KB RDMA ops, 32 in flight
+run 1: WRITE 97.96 Gbit/s   READ 98.02 Gbit/s   compare: identical (0 of 33554432 words differ)
+run 2: WRITE 97.99 Gbit/s   READ 98.01 Gbit/s   compare: identical (0 of 33554432 words differ)
+run 3: WRITE 97.97 Gbit/s   READ 98.02 Gbit/s   compare: identical (0 of 33554432 words differ)
+run 4: WRITE 97.97 Gbit/s   READ 98.02 Gbit/s   compare: identical (0 of 33554432 words differ)
+run 5: WRITE 98.00 Gbit/s   READ 98.02 Gbit/s   compare: identical (0 of 33554432 words differ)
+host exit 0
+host NIC rx_discards_phy +0
+
+3 MB transfers, 5 runs each (WRITE / READ Gbit/s, all identical):
+chunk   64 KB: 92.52-93.15 / 94.21-96.17
+chunk  256 KB: 92.49-94.67 / 94.35-96.49
+chunk 1024 KB: 92.19-94.66 / 94.98-96.49
