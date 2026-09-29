@@ -1,4 +1,4 @@
-# ERNIC's five AXI4 masters (200 MHz) and a JTAG-to-AXI master -> PL DDR4 (MIG, ui_clk 250 MHz).
+# ERNIC's five AXI4 masters (200 MHz) and a JTAG-to-AXI master -> PL DDR4 (MIG, DDR4-2400, ui_clk 300 MHz).
 # Interconnect runs on ui_clk; each ERNIC port crosses clocks and has a 512-entry packet FIFO.
 create_ip -name axi_interconnect -vendor xilinx.com -library ip -version 1.7 -module_name axi_ic_0
 set cfg [list CONFIG.NUM_SLAVE_PORTS {6} CONFIG.AXI_ADDR_WIDTH {32} CONFIG.INTERCONNECT_DATA_WIDTH {512} \

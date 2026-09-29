@@ -44,10 +44,10 @@
     <text x="560" y="300" fill="#555">TX on the CMAC clock</text>
 
     <rect x="665" y="120" width="130" height="64" rx="6" fill="#f2f2f2" stroke="#777"/>
-    <text x="730" y="143" font-weight="bold">AXI interconnect</text><text x="730" y="161">6 → 1, 512 bit</text><text x="730" y="177" fill="#555">200 → 250 MHz</text>
+    <text x="730" y="143" font-weight="bold">AXI interconnect</text><text x="730" y="161">6 → 1, 512 bit</text><text x="730" y="177" fill="#555">200 → 300 MHz</text>
 
     <rect x="665" y="230" width="130" height="64" rx="6" fill="#f2f2f2" stroke="#777"/>
-    <text x="730" y="253" font-weight="bold">PL DDR4-2000</text><text x="730" y="271">MIG, 4 GB</text><text x="730" y="287" fill="#555">queues + 256 MB MR</text>
+    <text x="730" y="253" font-weight="bold">PL DDR4-2400</text><text x="730" y="271">MIG, 4 GB</text><text x="730" y="287" fill="#555">queues + 256 MB MR</text>
 
     <rect x="485" y="340" width="310" height="30" rx="6" fill="#f2f2f2" stroke="#777"/>
     <text x="640" y="360">JTAG-to-AXI (ERNIC registers, DDR4) · VIO counters</text>

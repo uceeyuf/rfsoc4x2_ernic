@@ -1,0 +1,22 @@
+PL DDR4-2400 build (MIG 833 ps, CL16 / CWL12, ui_clk 300 MHz; timing met, WNS +0.109 ns)
+host: Core Ultra 7 265K, ConnectX-4 (rocep2s0, PCIe 3.0 x16), Ubuntu 24.04, rdma-core 50, IOMMU on, host buffers on 2 MB THP
+
+== memory loopback: ITERS=3 SIZE_MB=256 CHUNK_KB=1024 tests/debug_loopback.sh
+run 1: WRITE 97.96 Gbit/s   READ 98.02 Gbit/s   compare: identical (0 of 33554432 words differ)
+run 2: WRITE 97.99 Gbit/s   READ 98.01 Gbit/s   compare: identical (0 of 33554432 words differ)
+run 3: WRITE 97.99 Gbit/s   READ 98.02 Gbit/s   compare: identical (0 of 33554432 words differ)
+
+== SEND echo, buffers on chip: MODE=echo SIZE_MB=256 ITERS=3 WINDOW=48
+run 1: 65536 echoes in 0.025 s: 87.50 Gbit/s each way, 0.37 us per message   compare: identical (0 of 33554432 words differ)
+run 2: 65536 echoes in 0.024 s: 88.09 Gbit/s each way, 0.37 us per message   compare: identical (0 of 33554432 words differ)
+run 3: 65536 echoes in 0.024 s: 88.05 Gbit/s each way, 0.37 us per message   compare: identical (0 of 33554432 words differ)
+
+== SEND echo, buffers in PL DDR4: ECHO_MEM=ddr MODE=echo SIZE_MB=256 ITERS=3 WINDOW=12
+run 1: 65536 echoes in 0.043 s: 50.07 Gbit/s each way, 0.65 us per message   compare: identical (0 of 33554432 words differ)
+run 2: 65536 echoes in 0.043 s: 50.03 Gbit/s each way, 0.65 us per message   compare: identical (0 of 33554432 words differ)
+run 3: 65536 echoes in 0.043 s: 50.14 Gbit/s each way, 0.65 us per message   compare: identical (0 of 33554432 words differ)
+
+== SEND echo, buffers in PL DDR4: ECHO_MEM=ddr MODE=echo SIZE_MB=256 ITERS=3 WINDOW=32
+run 1: 65536 echoes in 0.041 s: 52.88 Gbit/s each way, 0.62 us per message   compare: identical (0 of 33554432 words differ)
+run 2: 65536 echoes in 0.041 s: 52.94 Gbit/s each way, 0.62 us per message   compare: identical (0 of 33554432 words differ)
+run 3: 65536 echoes in 0.041 s: 52.90 Gbit/s each way, 0.62 us per message   compare: identical (0 of 33554432 words differ)

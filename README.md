@@ -7,7 +7,7 @@
 <span id="en">RFSoC 4x2 100G RDMA with ERNIC</span>
 ===========================
 
-RoCE v2 on the RFSoC 4x2 (XCZU48DR-FFVG1517-2-E) QSFP28 port with the AMD ERNIC v4.0 IP, PL only. A Linux host with a Mellanox ConnectX-4 connects an RC queue pair to the FPGA and RDMA WRITEs into, and RDMA READs from, a memory region in the PL DDR4: **256 MB WRITE at 97.98 Gbit/s and READ at 98.02 Gbit/s, byte-exact, the RDMA line rate of 100GbE at a 4096-byte path MTU.** The fabric also echoes RDMA SENDs by itself: **every 4 KB message the host SENDs is sent back by ERNIC under the control of a small doorbell engine, no CPU involved, at 87.9 Gbit/s each way with the receive buffers in on-chip URAM (46.5 Gbit/s with them in PL DDR4), byte-exact.**
+RoCE v2 on the RFSoC 4x2 (XCZU48DR-FFVG1517-2-E) QSFP28 port with the AMD ERNIC v4.0 IP, PL only. A Linux host with a Mellanox ConnectX-4 connects an RC queue pair to the FPGA and RDMA WRITEs into, and RDMA READs from, a memory region in the PL DDR4: **256 MB WRITE at 97.98 Gbit/s and READ at 98.02 Gbit/s, byte-exact, the RDMA line rate of 100GbE at a 4096-byte path MTU.** The fabric also echoes RDMA SENDs by itself: **every 4 KB message the host SENDs is sent back by ERNIC under the control of a small doorbell engine, no CPU involved, at 87.9 Gbit/s each way with the receive buffers in on-chip URAM (52.9 Gbit/s with them in PL DDR4-2400), byte-exact.**
 
 Phase 2 of three: memory loopback (`v0.1-memory-loopback`) and hardware SEND echo (`v0.2-hw-send-echo`, receive buffers on chip in `v0.3-onchip-echo`); next an RF data path.
 
@@ -22,7 +22,7 @@ Phase 2 of three: memory loopback (`v0.1-memory-loopback`) and hardware SEND ech
 ## Technical Features
 
 * **ERNIC v4.0** at 512 bit × 200 MHz with 8 queue pairs; the CMAC side at 322 MHz. RoCE v2 frames (UDP 4791) are filtered from the CMAC receive stream and cross to ERNIC's clock through an asynchronous frame FIFO; ERNIC transmits on the CMAC clock through a store-and-forward frame FIFO.
-* **PL DDR4** (MIG, 4 GB, 512 bit × 250 MHz) behind a 6 → 1 AXI interconnect holds the queues, doorbells, error buffers and a 256 MB memory region (R_Key 0x12, VA 0x1000_0000).
+* **PL DDR4-2400** (MIG, 4 GB, 512 bit × 300 MHz) behind a 6 → 1 AXI interconnect holds the queues, doorbells, error buffers and a 256 MB memory region (R_Key 0x12, VA 0x1000_0000).
 * **Hardware SEND echo** (`rtl/send_echo.v`): QP 2 uses ERNIC's doorbell handshake ports. Its send queue holds 64 SEND WQEs written once at configuration, WQE *k* sending receive buffer *k*. The engine only forwards doorbells: a message arriving in buffer *k* (RQ producer index) posts WQE *k* (SQ producer index), and the completion of WQE *k* frees buffer *k* (RQ consumer index).
 * **On-chip receive buffers** (`rtl/echo_mem.v`): the 64 × 4 KB buffers sit in URAM at ERNIC address `0x8000_0000`. A zero-latency address split (`rtl/axi_split2.v`) on ERNIC's receive writer and WQE processor sends that range to `echo_mem` and everything else to DDR4, so an echoed message is written and read on chip.
 * **ARP responder** in the fabric: the host resolves the ERNIC address like any other neighbour.
@@ -51,16 +51,16 @@ With a 4096-byte path MTU every packet carries 82 bytes of Ethernet/IPv4/UDP/BTH
 | Window | Buffers on chip (each way) | Buffers in PL DDR4 (each way) | Time per message (on chip) |
 | :----: | :------------------------: | :---------------------------: | :------------------------: |
 | 1 | 6.28 Gbit/s | | 5.22 µs (round trip) |
-| 12 | 52.6–52.7 Gbit/s | 46.0–46.1 Gbit/s | 0.62 µs |
+| 12 | 52.6–52.7 Gbit/s | 50.0–50.1 Gbit/s | 0.62 µs |
 | 24 | 77.8–78.0 Gbit/s | | 0.42 µs |
-| 32 | 84.7–85.1 Gbit/s | 46.7–46.8 Gbit/s | 0.39 µs |
+| 32 | 84.7–85.1 Gbit/s | 52.9 Gbit/s | 0.39 µs |
 | 48 | **87.6–87.9 Gbit/s** | | 0.37 µs |
 
 All echoes identical, ERNIC error buffer empty, no host NIC drops. 2048-byte messages at window 48: 73.1–73.2 Gbit/s (0.22 µs per message). Raw data: [docs/results](./docs/results).
 
-With the buffers in PL DDR4 every message is written to DDR4 and read back, and the echo stops at 46–47 Gbit/s each way whatever the window: 93 Gbit/s of mixed traffic, the practical limit of the 64-bit DDR4-2000 interface. On chip it rises to 88 Gbit/s. The remaining gap to 98 is not the FPGA memory path: cutting `echo_mem`'s read latency to one cycle changed nothing. Running RDMA WRITE and READ at the same time (`--mode bidir`, same host load as the echo) makes the host NIC drop packets (`rx_discards_phy`), so receiving and sending at full rate at once on the host (ConnectX-4, PCIe 3.0 x16) is the likely limit.
+With the buffers in PL DDR4 every message is written to DDR4 and read back, and the echo stops at 50–53 Gbit/s each way whatever the window: about 106 Gbit/s of mixed traffic, the practical limit of the 64-bit DDR4-2400 interface (with DDR4-2000 it stopped at 46–47 Gbit/s, 93 Gbit/s of traffic). On chip it rises to 88 Gbit/s. The remaining gap to 98 is not the FPGA memory path: cutting `echo_mem`'s read latency to one cycle changed nothing. Running RDMA WRITE and READ at the same time (`--mode bidir`, same host load as the echo) makes the host NIC drop packets (`rx_discards_phy`), so receiving and sending at full rate at once on the host (ConnectX-4, PCIe 3.0 x16) is the likely limit.
 
-Timing met: WNS +0.223 ns, WHS +0.010 ns. Resources: 70,035 LUT (16.5 %), 97,638 FF, 248.5 BRAM, 28 URAM.
+Timing met (DDR4-2400, interconnect at 300 MHz): WNS +0.109 ns, WHS +0.010 ns. Resources: 70,232 LUT (16.5 %), 97,626 FF, 248.5 BRAM, 28 URAM.
 
 　
 
@@ -147,7 +147,7 @@ The files of this design are BSD 3-Clause, Copyright (c) 2026, Yijie Yu. ERNIC, 
 <span id="cn">基于 ERNIC 的 RFSoC 4x2 100G RDMA</span>
 ===========================
 
-在 RFSoC 4x2（XCZU48DR-FFVG1517-2-E）QSFP28 口上用 AMD ERNIC v4.0 IP 实现 RoCE v2，纯 PL 设计。Linux 主机（Mellanox ConnectX-4）与 FPGA 建立 RC 队列对，对 PL DDR4 中的内存区域做 RDMA WRITE 和 RDMA READ：**256 MB 写 97.98 Gbit/s、读 98.02 Gbit/s，逐字节一致，即 4096 字节路径 MTU 下 100GbE 的 RDMA 线速。** 逻辑还能自行回发 RDMA SEND：**主机 SEND 的每条 4 KB 消息都由一个小的门铃引擎控制 ERNIC 发回，不经过 CPU；接收缓冲放在片上 URAM 时每方向 87.9 Gbit/s（放在 PL DDR4 时 46.5 Gbit/s），逐字节一致。**
+在 RFSoC 4x2（XCZU48DR-FFVG1517-2-E）QSFP28 口上用 AMD ERNIC v4.0 IP 实现 RoCE v2，纯 PL 设计。Linux 主机（Mellanox ConnectX-4）与 FPGA 建立 RC 队列对，对 PL DDR4 中的内存区域做 RDMA WRITE 和 RDMA READ：**256 MB 写 97.98 Gbit/s、读 98.02 Gbit/s，逐字节一致，即 4096 字节路径 MTU 下 100GbE 的 RDMA 线速。** 逻辑还能自行回发 RDMA SEND：**主机 SEND 的每条 4 KB 消息都由一个小的门铃引擎控制 ERNIC 发回，不经过 CPU；接收缓冲放在片上 URAM 时每方向 87.9 Gbit/s（放在 PL DDR4-2400 时 52.9 Gbit/s），逐字节一致。**
 
 三个阶段中的第二阶段：内存回环（`v0.1-memory-loopback`）和硬件 SEND 回环（`v0.2-hw-send-echo`，`v0.3-onchip-echo` 起接收缓冲放在片上）；之后是射频数据通路。
 
@@ -162,7 +162,7 @@ The files of this design are BSD 3-Clause, Copyright (c) 2026, Yijie Yu. ERNIC, 
 ## 技术特点
 
 * **ERNIC v4.0**，512 bit × 200 MHz，8 个队列对；CMAC 一侧 322 MHz。RoCE v2 帧（UDP 4791）从 CMAC 接收流中过滤出来，经异步帧 FIFO 跨到 ERNIC 时钟；ERNIC 在 CMAC 时钟上发送，经存储转发帧 FIFO 送入 CMAC。
-* **PL DDR4**（MIG，4 GB，512 bit × 250 MHz）经 6 → 1 AXI 互联，存放队列、门铃、错误缓冲和 256 MB 内存区域（R_Key 0x12，VA 0x1000_0000）。
+* **PL DDR4-2400**（MIG，4 GB，512 bit × 300 MHz）经 6 → 1 AXI 互联，存放队列、门铃、错误缓冲和 256 MB 内存区域（R_Key 0x12，VA 0x1000_0000）。
 * **硬件 SEND 回环**（`rtl/send_echo.v`）：QP 2 使用 ERNIC 的门铃握手端口。其发送队列在配置时一次性写入 64 个 SEND WQE，WQE *k* 发送接收缓冲 *k*。引擎只转发门铃：消息到达缓冲 *k*（RQ 生产者指针）即提交 WQE *k*（SQ 生产者指针），WQE *k* 完成后释放缓冲 *k*（RQ 消费者指针）。
 * **片上接收缓冲**（`rtl/echo_mem.v`）：64 × 4 KB 缓冲放在 URAM 中，ERNIC 地址 `0x8000_0000`。ERNIC 的接收写入口和 WQE 处理口各接一个零延迟地址分流（`rtl/axi_split2.v`），这一地址段送往 `echo_mem`，其余送往 DDR4，回环的消息在片上写入和读出。
 * **ARP 应答**在逻辑中实现：主机像解析其他邻居一样解析 ERNIC 的地址。
@@ -191,16 +191,16 @@ The files of this design are BSD 3-Clause, Copyright (c) 2026, Yijie Yu. ERNIC, 
 | Window | 缓冲在片上（每方向） | 缓冲在 PL DDR4（每方向） | 每条消息耗时（片上） |
 | :----: | :-----------------: | :---------------------: | :-----------------: |
 | 1 | 6.28 Gbit/s | | 5.22 µs（往返） |
-| 12 | 52.6–52.7 Gbit/s | 46.0–46.1 Gbit/s | 0.62 µs |
+| 12 | 52.6–52.7 Gbit/s | 50.0–50.1 Gbit/s | 0.62 µs |
 | 24 | 77.8–78.0 Gbit/s | | 0.42 µs |
-| 32 | 84.7–85.1 Gbit/s | 46.7–46.8 Gbit/s | 0.39 µs |
+| 32 | 84.7–85.1 Gbit/s | 52.9 Gbit/s | 0.39 µs |
 | 48 | **87.6–87.9 Gbit/s** | | 0.37 µs |
 
 所有回发消息一致，ERNIC 错误缓冲为空，主机网卡无丢包。2048 字节消息、window 48：73.1–73.2 Gbit/s（每条 0.22 µs）。原始数据：[docs/results](./docs/results)。
 
-缓冲在 PL DDR4 时每条消息都要写入 DDR4 再读出，无论 window 多大，回环都停在每方向 46–47 Gbit/s：即 93 Gbit/s 的读写混合流量，是 64 位 DDR4-2000 接口的实际上限。放到片上后升到 88 Gbit/s。离 98 的差距不在 FPGA 存储通路：把 `echo_mem` 的读延迟降到一个周期没有任何变化。同时做 RDMA WRITE 和 READ（`--mode bidir`，主机负载与回环相同）时主机网卡会丢包（`rx_discards_phy`），所以主机（ConnectX-4，PCIe 3.0 x16）同时满速收发很可能是剩下的瓶颈。
+缓冲在 PL DDR4 时每条消息都要写入 DDR4 再读出，无论 window 多大，回环都停在每方向 50–53 Gbit/s：即约 106 Gbit/s 的读写混合流量，是 64 位 DDR4-2400 接口的实际上限（DDR4-2000 时停在 46–47 Gbit/s，即 93 Gbit/s 流量）。放到片上后升到 88 Gbit/s。离 98 的差距不在 FPGA 存储通路：把 `echo_mem` 的读延迟降到一个周期没有任何变化。同时做 RDMA WRITE 和 READ（`--mode bidir`，主机负载与回环相同）时主机网卡会丢包（`rx_discards_phy`），所以主机（ConnectX-4，PCIe 3.0 x16）同时满速收发很可能是剩下的瓶颈。
 
-时序收敛：WNS +0.223 ns，WHS +0.010 ns。资源：70,035 LUT（16.5 %），97,638 FF，248.5 BRAM，28 URAM。
+时序收敛（DDR4-2400，互联 300 MHz）：WNS +0.109 ns，WHS +0.010 ns。资源：70,232 LUT（16.5 %），97,626 FF，248.5 BRAM，28 URAM。
 
 　
 
